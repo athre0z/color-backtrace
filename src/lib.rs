@@ -6,7 +6,33 @@ use std::panic::PanicInfo;
 use std::path::{Path, PathBuf};
 use term::{self, color, StderrTerminal};
 
-type IOResult<T = ()> = Result<T, std::io::Error>;
+// ============================================================================================== //
+// [Result / Error types]                                                                         //
+// ============================================================================================== //
+
+pub type IOResult<T = ()> = Result<T, std::io::Error>;
+
+// ============================================================================================== //
+// [Verbosity management]                                                                         //
+// ============================================================================================== //
+
+pub enum Verbosity {
+    MINIMAL,
+    MEDIUM,
+    FULL,
+}
+
+pub fn get_verbosity() -> Verbosity {
+    match std::env::var("RUST_BACKTRACE") {
+        Ok(ref x) if x == "full" => Verbosity::FULL,
+        Ok(_) => Verbosity::MEDIUM,
+        Err(_) => Verbosity::MINIMAL,
+    }
+}
+
+// ============================================================================================== //
+// [Backtrace frame]                                                                              //
+// ============================================================================================== //
 
 #[derive(Debug)]
 struct Sym {
@@ -81,6 +107,10 @@ impl Sym {
     }
 }
 
+// ============================================================================================== //
+// [Core panic handler logic]                                                                     //
+// ============================================================================================== //
+
 fn print_source_if_avail(lineno: usize, filename: &Path, t: &mut StderrTerminal) -> IOResult {
     let file = match File::open(filename) {
         Ok(file) => file,
@@ -146,6 +176,7 @@ fn print_panic_info(t: &mut StderrTerminal, pi: &PanicInfo) -> IOResult {
     writeln!(t, "\nOh noez! Panic! 💥\n")?;
     t.reset()?;
 
+    // Print panic message.
     let payload_fallback = "<non string panic payload>".to_owned();
     let payload: &String = pi.payload().downcast_ref().unwrap_or(&payload_fallback);
     write!(t, "Panic message: ")?;
@@ -161,3 +192,5 @@ pub fn panic(pi: &PanicInfo) {
     print_panic_info(&mut *t, pi).unwrap();
     print_backtrace(&mut *t).unwrap();
 }
+
+// ============================================================================================== //
