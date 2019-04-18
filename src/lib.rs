@@ -195,12 +195,14 @@ impl<'a> PanicHandler<'a> {
         self.t.reset()?;
 
         // Print panic message.
-        let payload_fallback = "<non string panic payload>".to_owned();
-        let payload: &String = self
+        let payload = self
             .pi
             .payload()
-            .downcast_ref()
-            .unwrap_or(&payload_fallback);
+            .downcast_ref::<String>()
+            .map(|x| x.as_str())
+            .or_else(|| self.pi.payload().downcast_ref::<&str>().map(|x| *x))
+            .unwrap_or("<non string panic payload>");
+
         write!(self.t, "Message:  ")?;
         self.t.fg(color::CYAN)?;
         writeln!(self.t, "{}", payload)?;
