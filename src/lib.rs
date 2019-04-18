@@ -4,25 +4,31 @@ use std::io::BufReader;
 use std::io::{BufRead, ErrorKind};
 use std::panic::PanicInfo;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use term::{self, color, StderrTerminal};
 
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
 // ============================================================================================== //
 
-pub type IOResult<T = ()> = Result<T, std::io::Error>;
+type IOResult<T = ()> = Result<T, std::io::Error>;
 
 // ============================================================================================== //
 // [Verbosity management]                                                                         //
 // ============================================================================================== //
 
+/// Verbosity levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Verbosity {
+    /// Print a small message including the panic payload and the panic location.
     MINIMAL,
+    /// Everything in `MINIMAL` and additionally print a backtrace.
     MEDIUM,
+    /// Everything in `MEDIUM` plus source snippets for all backtrace locations.
     FULL,
 }
 
+/// Retrieve verbosity level.
 pub fn get_verbosity() -> Verbosity {
     match std::env::var("RUST_BACKTRACE") {
         Ok(ref x) if x == "full" => Verbosity::FULL,
@@ -36,13 +42,19 @@ pub fn get_verbosity() -> Verbosity {
 // ============================================================================================== //
 
 /// Panic handler printing colorful back traces.
-pub fn color_panic_handler(pi: &PanicInfo) {
-    PanicHandler::new(pi).go().unwrap();
+pub fn create_panic_handler() -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
+    let mutex = Mutex::new(());
+    Box::new(move |pi| {
+        // Prevent mixed up printing when multiple threads panic at once.
+        let _lock = mutex.lock();
+
+        PanicHandler::new(pi).go().unwrap();
+    })
 }
 
 /// Install the color traceback handler.
 pub fn install() {
-    std::panic::set_hook(Box::new(color_panic_handler));
+    std::panic::set_hook(create_panic_handler());
 }
 
 // ============================================================================================== //
