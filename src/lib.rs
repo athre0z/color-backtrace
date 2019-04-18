@@ -16,6 +16,7 @@ pub type IOResult<T = ()> = Result<T, std::io::Error>;
 // [Verbosity management]                                                                         //
 // ============================================================================================== //
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Verbosity {
     MINIMAL,
     MEDIUM,
@@ -34,8 +35,8 @@ pub fn get_verbosity() -> Verbosity {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-#[derive(Debug)]
-struct Sym {
+struct Sym<'a, 'b> {
+    handler: &'a mut PanicHandler<'b>,
     name: Option<String>,
     lineno: Option<u32>,
     filename: Option<PathBuf>,
@@ -51,7 +52,7 @@ static BUILTIN_PREFIXES: &[&str] = &[
     "_main",
 ];
 
-impl Sym {
+impl<'a, 'b> Sym<'a, 'b> {
     fn is_builtin(&self) -> bool {
         match self.name {
             Some(ref name) => BUILTIN_PREFIXES.iter().any(|x| name.starts_with(x)),
@@ -59,18 +60,19 @@ impl Sym {
         }
     }
 
-    pub fn print_source_if_avail(&self, t: &mut StderrTerminal) -> IOResult {
+    pub fn print_source_if_avail(&mut self) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
-            (Some(a), Some(b)) => (a as usize - 1, b),
+            (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
             _ => return Ok(()),
         };
 
-        print_source_if_avail(lineno, filename, t)
+        self.handler.print_source_if_avail(filename, lineno)
     }
 
-    pub fn print_loc(&self, i: usize, t: &mut StderrTerminal) -> IOResult {
+    pub fn print_loc(&mut self, i: usize) -> IOResult {
         let is_builtin = self.is_builtin();
+        let t = &mut self.handler.t;
 
         // Print frame index.
         write!(t, "{:>2}: ", i)?;
@@ -88,7 +90,7 @@ impl Sym {
         t.reset()?;
 
         // Print source location, if known.
-        t.fg(color::MAGENTA)?;
+        // t.fg(color::MAGENTA)?;
         if let Some(ref file) = self.filename {
             let filestr = file.to_str().unwrap_or("<bad utf8>");
             let lineno = self
@@ -98,10 +100,10 @@ impl Sym {
         } else {
             writeln!(t, "    <unknown source file>")?;
         }
-        t.reset()?;
+        // t.reset()?;
 
         // Print source.
-        self.print_source_if_avail(t)?;
+        self.print_source_if_avail()?;
 
         Ok(())
     }
@@ -111,86 +113,131 @@ impl Sym {
 // [Core panic handler logic]                                                                     //
 // ============================================================================================== //
 
-fn print_source_if_avail(lineno: usize, filename: &Path, t: &mut StderrTerminal) -> IOResult {
-    let file = match File::open(filename) {
-        Ok(file) => file,
-        Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-        e @ Err(_) => e?,
-    };
-
-    // Extract relevant lines.
-    let reader = BufReader::new(file);
-    let start_line = lineno - 2.min(lineno);
-    let surrounding_src = reader.lines().skip(start_line).take(5);
-    for (line, cur_line_no) in surrounding_src.zip(start_line..) {
-        if cur_line_no == lineno {
-            // Print actual source line with brighter color.
-            t.fg(color::BRIGHT_WHITE)?;
-            writeln!(t, ">>{:>6} {}", cur_line_no, line?)?;
-            t.reset()?;
-        } else {
-            writeln!(t, "{:>8} {}", cur_line_no, line?)?;
-        }
-    }
-
-    Ok(())
+struct PanicHandler<'a> {
+    pub pi: &'a PanicInfo<'a>,
+    pub v: Verbosity,
+    pub t: Box<StderrTerminal>,
 }
 
-fn print_backtrace(t: &mut StderrTerminal) -> IOResult {
-    writeln!(t, "\n{:-^80}", "[ BACKTRACE ]")?;
+impl<'a> PanicHandler<'a> {
+    fn print_source_if_avail(&mut self, filename: &Path, lineno: u32) -> IOResult {
+        let file = match File::open(filename) {
+            Ok(file) => file,
+            Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            e @ Err(_) => e?,
+        };
 
-    let mut i = 0;
-    let mut result = Ok(());
-    backtrace::trace(|x| {
-        println!();
-
-        let mut symbol = None;
-        backtrace::resolve(x.ip(), |sym| {
-            debug_assert!(symbol.is_none());
-            symbol = Some(Sym {
-                name: sym.name().map(|x| x.to_string()),
-                lineno: sym.lineno(),
-                filename: sym.filename().map(|x| x.into()),
-            });
-        });
-
-        if let Some(sym) = symbol.as_ref() {
-            match sym.print_loc(i, t) {
-                Ok(_) => (),
-                Err(e) => {
-                    result = Err(e);
-                    return false;
-                }
+        // Extract relevant lines.
+        let reader = BufReader::new(file);
+        let start_line = lineno - 2.min(lineno);
+        let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
+        for (line, cur_line_no) in surrounding_src.zip(start_line..) {
+            if cur_line_no == lineno {
+                // Print actual source line with brighter color.
+                self.t.fg(color::BRIGHT_WHITE)?;
+                writeln!(self.t, ">>{:>6} {}", cur_line_no, line?)?;
+                self.t.reset()?;
+            } else {
+                writeln!(self.t, "{:>8} {}", cur_line_no, line?)?;
             }
         }
 
-        i += 1;
-        true
-    });
+        Ok(())
+    }
 
-    Ok(())
-}
+    fn print_backtrace(&mut self) -> IOResult {
+        writeln!(self.t, "\n{:-^80}\n", "[ BACKTRACE ]")?;
 
-fn print_panic_info(t: &mut StderrTerminal, pi: &PanicInfo) -> IOResult {
-    t.fg(color::RED)?;
-    writeln!(t, "\nOh noez! Panic! 💥\n")?;
-    t.reset()?;
+        // Collect frame info.
+        let mut symbols = Vec::new();
+        backtrace::trace(|x| {
+            backtrace::resolve(x.ip(), |sym| {
+                symbols.push((
+                    sym.name().map(|x| x.to_string()),
+                    sym.lineno(),
+                    sym.filename().map(|x| x.into()),
+                ));
+            });
 
-    // Print panic message.
-    let payload_fallback = "<non string panic payload>".to_owned();
-    let payload: &String = pi.payload().downcast_ref().unwrap_or(&payload_fallback);
-    write!(t, "Panic message: ")?;
-    t.fg(color::CYAN)?;
-    writeln!(t, "{}", payload)?;
-    t.reset()?;
+            true
+        });
 
-    Ok(())
+        for (i, (name, lineno, filename)) in symbols.into_iter().enumerate() {
+            let mut sym = Sym {
+                handler: self,
+                name,
+                lineno,
+                filename,
+            };
+
+            sym.print_loc(i)?;
+        }
+
+        Ok(())
+    }
+
+    fn print_panic_info(&mut self) -> IOResult {
+        self.t.fg(color::RED)?;
+        writeln!(self.t, "\nOh noez! Panic! 💥\n")?;
+        self.t.reset()?;
+
+        // Print panic message.
+        let payload_fallback = "<non string panic payload>".to_owned();
+        let payload: &String = self
+            .pi
+            .payload()
+            .downcast_ref()
+            .unwrap_or(&payload_fallback);
+        write!(self.t, "Message:  ")?;
+        self.t.fg(color::CYAN)?;
+        writeln!(self.t, "{}", payload)?;
+        self.t.reset()?;
+
+        // If known, print panic location.
+        write!(self.t, "Location: ")?;
+        if let Some(loc) = self.pi.location() {
+            self.t.fg(color::MAGENTA)?;
+            write!(self.t, "{}", loc.file())?;
+            self.t.fg(color::WHITE)?;
+            write!(self.t, ":")?;
+            self.t.fg(color::MAGENTA)?;
+            writeln!(self.t, "{}", loc.line())?;
+            self.t.reset()?;
+        } else {
+            writeln!(self.t, "<unknown>")?;
+        }
+
+        // Maybe print source.
+        if self.v >= Verbosity::MEDIUM {
+            if let Some(loc) = self.pi.location() {
+                self.print_source_if_avail(Path::new(loc.file()), loc.line() as u32)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn go(mut self) -> IOResult {
+        self.print_panic_info()?;
+
+        if self.v >= Verbosity::MEDIUM {
+            self.print_backtrace()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn new(pi: &'a PanicInfo) -> Self {
+        Self {
+            v: get_verbosity(),
+            pi: pi,
+            t: term::stderr().unwrap(),
+        }
+    }
 }
 
 pub fn panic(pi: &PanicInfo) {
-    let mut t = term::stderr().unwrap();
-    print_panic_info(&mut *t, pi).unwrap();
-    print_backtrace(&mut *t).unwrap();
+    PanicHandler::new(pi).go().unwrap();
 }
 
 // ============================================================================================== //
