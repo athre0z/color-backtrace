@@ -1,6 +1,6 @@
 fn fn4() {
-    color_backtrace::panic(unsafe { std::mem::uninitialized() });
-    //Err::<(), ()>(()).unwrap();
+    //color_backtrace::panic(unsafe { std::mem::uninitialized() });
+    Err::<(), ()>(()).unwrap();
 }
 
 fn fn3() {
@@ -20,6 +20,6 @@ fn fn1() {
 }
 
 fn main() {
-    //std::panic::set_hook(Box::new(color_traceback::panic));
+    std::panic::set_hook(Box::new(color_backtrace::panic));
     fn1();
 }
