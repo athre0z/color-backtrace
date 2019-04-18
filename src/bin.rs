@@ -20,6 +20,6 @@ fn fn1() {
 }
 
 fn main() {
-    std::panic::set_hook(Box::new(color_backtrace::panic));
+    color_backtrace::install();
     fn1();
 }

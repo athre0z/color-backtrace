@@ -32,6 +32,20 @@ pub fn get_verbosity() -> Verbosity {
 }
 
 // ============================================================================================== //
+// [Panic handler and install logic]                                                              //
+// ============================================================================================== //
+
+/// Panic handler printing colorful back traces.
+fn panic_handler(pi: &PanicInfo) {
+    PanicHandler::new(pi).go().unwrap();
+}
+
+/// Install the color traceback handler.
+pub fn install() {
+    std::panic::set_hook(Box::new(panic_handler));
+}
+
+// ============================================================================================== //
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
@@ -60,7 +74,7 @@ impl<'a, 'b> Sym<'a, 'b> {
         }
     }
 
-    pub fn print_source_if_avail(&mut self) -> IOResult {
+    fn print_source_if_avail(&mut self) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
@@ -70,7 +84,7 @@ impl<'a, 'b> Sym<'a, 'b> {
         self.handler.print_source_if_avail(filename, lineno)
     }
 
-    pub fn print_loc(&mut self, i: usize) -> IOResult {
+    fn print_loc(&mut self, i: usize) -> IOResult {
         let is_builtin = self.is_builtin();
         let t = &mut self.handler.t;
 
@@ -80,17 +94,15 @@ impl<'a, 'b> Sym<'a, 'b> {
         // Print function name, if known.
         let name_fallback = "<unknown>".to_owned();
         let name = self.name.as_ref().unwrap_or(&name_fallback);
-        if is_builtin {
-            t.fg(color::GREEN)?;
+        t.fg(if is_builtin {
+            color::GREEN
         } else {
-            t.fg(color::BRIGHT_RED)?;
-            //t.bg(color::GREEN)?;
-        }
+            color::BRIGHT_RED
+        })?;
         writeln!(t, "{}", name)?;
         t.reset()?;
 
         // Print source location, if known.
-        // t.fg(color::MAGENTA)?;
         if let Some(ref file) = self.filename {
             let filestr = file.to_str().unwrap_or("<bad utf8>");
             let lineno = self
@@ -100,10 +112,11 @@ impl<'a, 'b> Sym<'a, 'b> {
         } else {
             writeln!(t, "    <unknown source file>")?;
         }
-        // t.reset()?;
 
-        // Print source.
-        self.print_source_if_avail()?;
+        // Maybe print source.
+        if self.handler.v >= Verbosity::FULL {
+            self.print_source_if_avail()?;
+        }
 
         Ok(())
     }
@@ -114,9 +127,9 @@ impl<'a, 'b> Sym<'a, 'b> {
 // ============================================================================================== //
 
 struct PanicHandler<'a> {
-    pub pi: &'a PanicInfo<'a>,
-    pub v: Verbosity,
-    pub t: Box<StderrTerminal>,
+    pi: &'a PanicInfo<'a>,
+    v: Verbosity,
+    t: Box<StderrTerminal>,
 }
 
 impl<'a> PanicHandler<'a> {
@@ -208,16 +221,16 @@ impl<'a> PanicHandler<'a> {
         }
 
         // Maybe print source.
-        if self.v >= Verbosity::MEDIUM {
-            if let Some(loc) = self.pi.location() {
-                self.print_source_if_avail(Path::new(loc.file()), loc.line() as u32)?;
-            }
-        }
+        // if self.v >= Verbosity::MEDIUM {
+        //     if let Some(loc) = self.pi.location() {
+        //         self.print_source_if_avail(Path::new(loc.file()), loc.line() as u32)?;
+        //     }
+        // }
 
         Ok(())
     }
 
-    pub fn go(mut self) -> IOResult {
+    fn go(mut self) -> IOResult {
         self.print_panic_info()?;
 
         if self.v >= Verbosity::MEDIUM {
@@ -227,17 +240,13 @@ impl<'a> PanicHandler<'a> {
         Ok(())
     }
 
-    pub fn new(pi: &'a PanicInfo) -> Self {
+    fn new(pi: &'a PanicInfo) -> Self {
         Self {
             v: get_verbosity(),
             pi: pi,
             t: term::stderr().unwrap(),
         }
     }
-}
-
-pub fn panic(pi: &PanicInfo) {
-    PanicHandler::new(pi).go().unwrap();
 }
 
 // ============================================================================================== //
