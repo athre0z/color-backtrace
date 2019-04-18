@@ -68,22 +68,38 @@ struct Sym<'a, 'b> {
     filename: Option<PathBuf>,
 }
 
-static BUILTIN_PREFIXES: &[&str] = &[
-    "std::",
-    "core::",
-    "backtrace::backtrace::",
-    "_rust_begin_unwind",
-    "color_traceback::",
-    "___rust_maybe_catch_panic",
-    "_main",
-];
-
 impl<'a, 'b> Sym<'a, 'b> {
-    fn is_builtin(&self) -> bool {
-        match self.name {
-            Some(ref name) => BUILTIN_PREFIXES.iter().any(|x| name.starts_with(x)),
-            None => false,
+    /// Heuristically determine whether the symbol is likely to be part of a
+    /// dependency. If it fails to detect some patterns in your code base, feel
+    /// free to drop an issue / a pull request!
+    fn is_dependency_code(&self) -> bool {
+        static SYM_PREFIXES: &[&str] = &[
+            "std::",
+            "core::",
+            "backtrace::backtrace::",
+            "_rust_begin_unwind",
+            "color_traceback::",
+            "___rust_maybe_catch_panic",
+            "__pthread",
+            "_main",
+        ];
+
+        // Inspect name.
+        if let Some(ref name) = self.name {
+            if SYM_PREFIXES.iter().any(|x| name.starts_with(x)) {
+                return true;
+            }
         }
+
+        // Inspect filename.
+        if let Some(ref filename) = self.filename {
+            let filename = filename.to_string_lossy();
+            if filename.starts_with("/rustc/") || filename.contains("/.cargo/registry/src/") {
+                return true;
+            }
+        }
+
+        false
     }
 
     fn print_source_if_avail(&mut self) -> IOResult {
@@ -97,7 +113,7 @@ impl<'a, 'b> Sym<'a, 'b> {
     }
 
     fn print_loc(&mut self, i: usize) -> IOResult {
-        let is_builtin = self.is_builtin();
+        let is_dependency_code = self.is_dependency_code();
         let t = &mut self.handler.t;
 
         // Print frame index.
@@ -106,7 +122,7 @@ impl<'a, 'b> Sym<'a, 'b> {
         // Print function name, if known.
         let name_fallback = "<unknown>".to_owned();
         let name = self.name.as_ref().unwrap_or(&name_fallback);
-        t.fg(if is_builtin {
+        t.fg(if is_dependency_code {
             color::GREEN
         } else {
             color::BRIGHT_RED
@@ -160,10 +176,10 @@ impl<'a> PanicHandler<'a> {
             if cur_line_no == lineno {
                 // Print actual source line with brighter color.
                 self.t.fg(color::BRIGHT_WHITE)?;
-                writeln!(self.t, ">>{:>6} {}", cur_line_no, line?)?;
+                writeln!(self.t, ">>{:>6} | {}", cur_line_no, line?)?;
                 self.t.reset()?;
             } else {
-                writeln!(self.t, "{:>8} {}", cur_line_no, line?)?;
+                writeln!(self.t, "{:>8} | {}", cur_line_no, line?)?;
             }
         }
 
