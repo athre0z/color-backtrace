@@ -3,6 +3,10 @@ name = "color-backtrace"
 version = "0.1.0"
 authors = ["Joel Höner <athre0z@zyantific.com>"]
 edition = "2018"
+license = "MIT"
+repository = "https://github.com/athre0z/color-backtrace"
+description = "Colorful panic backtraces"
+readme = "README.md"
 
 [lib]
 path = "src/lib.rs"

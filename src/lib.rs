@@ -36,13 +36,13 @@ pub fn get_verbosity() -> Verbosity {
 // ============================================================================================== //
 
 /// Panic handler printing colorful back traces.
-fn panic_handler(pi: &PanicInfo) {
+pub fn color_panic_handler(pi: &PanicInfo) {
     PanicHandler::new(pi).go().unwrap();
 }
 
 /// Install the color traceback handler.
 pub fn install() {
-    std::panic::set_hook(Box::new(panic_handler));
+    std::panic::set_hook(Box::new(color_panic_handler));
 }
 
 // ============================================================================================== //
