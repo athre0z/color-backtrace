@@ -1,15 +1,14 @@
 [package]
-name = "color-traceback"
+name = "color-backtrace"
 version = "0.1.0"
 authors = ["Joel Höner <athre0z@zyantific.com>"]
 edition = "2018"
 
 [lib]
-#name = "color-traceback"
 path = "src/lib.rs"
 
 [[bin]]
-name = "color-traceback-test"
+name = "color-backtrace-test"
 path = "src/bin.rs"
 
 [dependencies]
