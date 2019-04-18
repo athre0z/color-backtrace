@@ -1,8 +1,8 @@
 use color_traceback;
-use std::panic::PanicInfo;
 
 fn fn4() {
-    Err::<(), ()>(()).unwrap();
+    color_traceback::panic(unsafe { std::mem::uninitialized() });
+    //Err::<(), ()>(()).unwrap();
 }
 
 fn fn3() {
@@ -14,7 +14,7 @@ fn fn2() {
     let _dead = 1 + 4;
     fn3();
     let _fsdf = "sdfsdf";
-    2 + 5;
+    let _fsgg = 2 + 5;
 }
 
 fn fn1() {
@@ -22,6 +22,6 @@ fn fn1() {
 }
 
 fn main() {
-    std::panic::set_hook(Box::new(color_traceback::panic));
+    //std::panic::set_hook(Box::new(color_traceback::panic));
     fn1();
 }
