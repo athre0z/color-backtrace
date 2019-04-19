@@ -1,5 +1,6 @@
 fn fn4() {
-    Err::<(), ()>(()).unwrap();
+    // Source printing at start the of a file ...
+    fn5();
 }
 
 fn fn3() {
@@ -21,4 +22,9 @@ fn fn1() {
 fn main() {
     color_backtrace::install();
     fn1();
+}
+
+fn fn5() {
+    // Source printing at the end of a file
+    Err::<(), ()>(()).unwrap();
 }

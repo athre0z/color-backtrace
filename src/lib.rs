@@ -170,7 +170,7 @@ impl<'a> PanicHandler<'a> {
 
         // Extract relevant lines.
         let reader = BufReader::new(file);
-        let start_line = lineno - 2.min(lineno);
+        let start_line = lineno - 2.min(lineno - 1);
         let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
         for (line, cur_line_no) in surrounding_src.zip(start_line..) {
             if cur_line_no == lineno {

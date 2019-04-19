@@ -6,7 +6,6 @@ and printing the relevant source snippets.
 
 ```toml
 [dependencies]
-
 color-backtrace = { version = "*" }
 ```
 
