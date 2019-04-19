@@ -16,13 +16,6 @@ keywords = [
     "pretty",
 ]
 
-[lib]
-path = "src/lib.rs"
-
-[[bin]]
-name = "color-backtrace-test"
-path = "src/bin.rs"
-
 [dependencies]
 backtrace = "0.3"
 term = "0.5"

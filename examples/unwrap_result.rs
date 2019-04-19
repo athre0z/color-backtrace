@@ -1,5 +1,4 @@
 fn fn4() {
-    //color_backtrace::panic(unsafe { std::mem::uninitialized() });
     Err::<(), ()>(()).unwrap();
 }
 
