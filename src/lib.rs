@@ -250,6 +250,27 @@ impl<'a> PanicHandler<'a> {
             writeln!(self.t, "<unknown>")?;
         }
 
+        if self.v == Verbosity::MINIMAL {
+            write!(self.t, "\nBacktrace omitted. Run with ")?;
+            self.t.fg(color::BRIGHT_WHITE)?;
+            write!(self.t, "RUST_BACKTRACE=1")?;
+            self.t.reset()?;
+            writeln!(self.t, " environment variable to display it.")?;
+        }
+
+        if self.v <= Verbosity::MEDIUM {
+            if self.v == Verbosity::MEDIUM {
+                // If exactly medium, no newline was printed before.
+                writeln!(self.t)?;
+            }
+
+            write!(self.t, "Run with ")?;
+            self.t.fg(color::BRIGHT_WHITE)?;
+            write!(self.t, "RUST_BACKTRACE=full")?;
+            self.t.reset()?;
+            writeln!(self.t, " to include source snippets.")?;
+        }
+
         // Maybe print source.
         // if self.v >= Verbosity::MEDIUM {
         //     if let Some(loc) = self.pi.location() {
