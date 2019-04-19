@@ -136,9 +136,9 @@ impl<'a, 'b> Sym<'a, 'b> {
             let lineno = self
                 .lineno
                 .map_or("<unknown line>".to_owned(), |x| x.to_string());
-            writeln!(t, "    {}:{}", filestr, lineno)?;
+            writeln!(t, "    at {}:{}", filestr, lineno)?;
         } else {
-            writeln!(t, "    <unknown source file>")?;
+            writeln!(t, "    at <unknown source file>")?;
         }
 
         // Maybe print source.
@@ -176,10 +176,10 @@ impl<'a> PanicHandler<'a> {
             if cur_line_no == lineno {
                 // Print actual source line with brighter color.
                 self.t.fg(color::BRIGHT_WHITE)?;
-                writeln!(self.t, ">>{:>6} | {}", cur_line_no, line?)?;
+                writeln!(self.t, "{:>8} > {}", cur_line_no, line?)?;
                 self.t.reset()?;
             } else {
-                writeln!(self.t, "{:>8} | {}", cur_line_no, line?)?;
+                writeln!(self.t, "{:>8} │ {}", cur_line_no, line?)?;
             }
         }
 
@@ -187,7 +187,7 @@ impl<'a> PanicHandler<'a> {
     }
 
     fn print_backtrace(&mut self) -> IOResult {
-        writeln!(self.t, "\n{:-^80}\n", "[ BACKTRACE ]")?;
+        writeln!(self.t, "{:━^80}", " BACKTRACE ")?;
 
         // Collect frame info.
         let mut symbols = Vec::new();
@@ -219,7 +219,7 @@ impl<'a> PanicHandler<'a> {
 
     fn print_panic_info(&mut self) -> IOResult {
         self.t.fg(color::RED)?;
-        writeln!(self.t, "\nOh noez! Panic! 💥\n")?;
+        writeln!(self.t, "Oh noez! Panic! 💥")?;
         self.t.reset()?;
 
         // Print panic message.
