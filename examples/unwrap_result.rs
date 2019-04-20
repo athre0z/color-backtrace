@@ -1,6 +1,5 @@
 fn fn4() {
-    // Source printing at start the of a file ...
-    fn5();
+    fn5(); // Source printing at start the of a file ...
 }
 
 fn fn3() {
