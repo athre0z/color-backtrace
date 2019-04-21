@@ -111,9 +111,12 @@ impl<'a, 'b> Sym<'a, 'b> {
             "backtrace::backtrace::",
             "_rust_begin_unwind",
             "color_traceback::",
-            "___rust_maybe_catch_panic",
+            "__rust_maybe_catch_panic",
             "__pthread",
             "_main",
+            "main",
+            "__scrt_common_main_seh",
+            "BaseThreadInitThunk",
         ];
 
         // Inspect name.
