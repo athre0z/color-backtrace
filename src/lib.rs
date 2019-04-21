@@ -160,6 +160,21 @@ struct PanicHandler<'a> {
     t: Box<StderrTerminal>,
 }
 
+fn is_post_panic_code(name: &Option<String>) -> bool {
+    static SYM_PREFIXES: &[&str] = &[
+        "_rust_begin_unwind",
+        "core::result::unwrap_failed",
+        "core::panicking::panic_fmt",
+        "color_backtrace::create_panic_handler",
+        "std::panicking::begin_panic",
+    ];
+
+    match name {
+        Some(ref name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+        None => false,
+    }
+}
+
 impl<'a> PanicHandler<'a> {
     fn print_source_if_avail(&mut self, filename: &Path, lineno: u32) -> IOResult {
         let file = match File::open(filename) {
@@ -203,7 +218,23 @@ impl<'a> PanicHandler<'a> {
             true
         });
 
-        for (i, (name, lineno, filename)) in symbols.into_iter().enumerate() {
+        // Try to find where the interesting part starts...
+        let cutoff = symbols
+            .iter()
+            .rposition(|x| is_post_panic_code(&x.0))
+            .map(|x| x + 1)
+            .unwrap_or(0);
+
+        if cutoff != 0 {
+            let text = format!("({} post panic frames hidden)", cutoff);
+            self.t.fg(color::BRIGHT_CYAN)?;
+            writeln!(self.t, "{:^80}", text)?;
+            self.t.reset()?;
+        }
+
+        // Turn them into `Symbol` objects and print them.
+        let symbols = symbols.into_iter().skip(cutoff).zip(cutoff..);
+        for ((name, lineno, filename), i) in symbols {
             let mut sym = Sym {
                 handler: self,
                 name,
