@@ -1,3 +1,33 @@
+//! Colorful and clean backtraces on panic.
+//!
+//! This library aims to make panics a little less painful by nicely colorizing
+//! them, skipping over frames of functions called after the panic was already
+//! initiated and printing relevant source snippets. Frames of functions in your
+//! application are colored in a different color (red) than those of
+//! dependencies (green).
+//!
+//! ### Screenshot
+//! ![Screenshot](https://i.imgur.com/bMnNdAj.png)
+//!
+//! ### Features
+//! - Colorize backtraces to be easier on the eyes
+//! - Show source snippets if source files are found on disk
+//! - Print frames of application code vs dependencies in different color
+//! - Hide all the frames after the panic was already initiated
+//!
+//! ### Installing the panic handler
+//!
+//! In your main function, just insert the following snippet. That's it!
+//! ```rust
+//! color_backtrace::install();
+//! ```
+//!
+//! ### Controlling verbosity
+//! The verbosity is configured via the `RUST_BACKTRACE` environment variable.
+//! An unset `RUST_BACKTRACE` corresponds to [minimal](Verbosity::MINIMAL),
+//! `RUST_BACKTRACE=1` to [medium](Verbosity::MEDIUM) and `RUST_BACKTRACE=full`
+//! to [full](Verbosity::FULL) verbosity levels.
+
 use backtrace;
 use std::fs::File;
 use std::io::BufReader;
@@ -17,7 +47,7 @@ type IOResult<T = ()> = Result<T, std::io::Error>;
 // [Verbosity management]                                                                         //
 // ============================================================================================== //
 
-/// Verbosity levels.
+/// Defines how verbose the backtrace is supposed to be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Verbosity {
     /// Print a small message including the panic payload and the panic location.
@@ -28,7 +58,7 @@ pub enum Verbosity {
     FULL,
 }
 
-/// Retrieve verbosity level.
+/// Query the verbosity level.
 pub fn get_verbosity() -> Verbosity {
     match std::env::var("RUST_BACKTRACE") {
         Ok(ref x) if x == "full" => Verbosity::FULL,
@@ -41,7 +71,9 @@ pub fn get_verbosity() -> Verbosity {
 // [Panic handler and install logic]                                                              //
 // ============================================================================================== //
 
-/// Panic handler printing colorful back traces.
+/// Create a `color_backtrace` panic handler.
+///
+/// This can be used if you want to combine the handler with other handlers.
 pub fn create_panic_handler() -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
     let mutex = Mutex::new(());
     Box::new(move |pi| {
@@ -52,7 +84,7 @@ pub fn create_panic_handler() -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + S
     })
 }
 
-/// Install the color traceback handler.
+/// Install the `color_backtrace` handler, by calling `std::panic::set_hook`.
 pub fn install() {
     std::panic::set_hook(create_panic_handler());
 }
@@ -258,7 +290,7 @@ impl<'a> PanicHandler<'a> {
             .pi
             .payload()
             .downcast_ref::<String>()
-            .map(|x| x.as_str())
+            .map(String::as_str)
             .or_else(|| self.pi.payload().downcast_ref::<&str>().map(|x| *x))
             .unwrap_or("<non string panic payload>");
 
@@ -281,6 +313,7 @@ impl<'a> PanicHandler<'a> {
             writeln!(self.t, "<unknown>")?;
         }
 
+        // Print some info on how to increase verbosity.
         if self.v == Verbosity::MINIMAL {
             write!(self.t, "\nBacktrace omitted. Run with ")?;
             self.t.fg(color::BRIGHT_WHITE)?;
@@ -288,7 +321,6 @@ impl<'a> PanicHandler<'a> {
             self.t.reset()?;
             writeln!(self.t, " environment variable to display it.")?;
         }
-
         if self.v <= Verbosity::MEDIUM {
             if self.v == Verbosity::MEDIUM {
                 // If exactly medium, no newline was printed before.
@@ -301,13 +333,6 @@ impl<'a> PanicHandler<'a> {
             self.t.reset()?;
             writeln!(self.t, " to include source snippets.")?;
         }
-
-        // Maybe print source.
-        // if self.v >= Verbosity::MEDIUM {
-        //     if let Some(loc) = self.pi.location() {
-        //         self.print_source_if_avail(Path::new(loc.file()), loc.line() as u32)?;
-        //     }
-        // }
 
         Ok(())
     }
@@ -324,8 +349,8 @@ impl<'a> PanicHandler<'a> {
 
     fn new(pi: &'a PanicInfo) -> Self {
         Self {
+            pi,
             v: get_verbosity(),
-            pi: pi,
             t: term::stderr().unwrap(),
         }
     }

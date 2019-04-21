@@ -27,10 +27,10 @@ color_backtrace::install();
 ```
 
 ### Features
-- Colorized backtraces in order to be easier on the eyes
+- Colorize backtraces to be easier on the eyes
 - Show source snippets if source files are found on disk
-- Print frames of application code in different color (red) than those of dependencies (green)
+- Print frames of application code vs dependencies in different color
 - Hide all the frames after the panic was already initiated
 
 ### Screenshot
-![Screenshot](https://mainframe.pw/u/g5nrTt2w0wAwskFO.png)
+![Screenshot](https://i.imgur.com/bMnNdAj.png)
