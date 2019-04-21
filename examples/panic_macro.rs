@@ -1,5 +1,6 @@
 fn fn3() {
-    panic!();
+    let blah = 123;
+    panic!("{}", blah);
 }
 
 fn fn2() {

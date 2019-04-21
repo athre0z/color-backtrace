@@ -117,6 +117,9 @@ impl<'a, 'b> Sym<'a, 'b> {
             "main",
             "__scrt_common_main_seh",
             "BaseThreadInitThunk",
+            "_start",
+            "__libc_start_main",
+            "start_thread",
         ];
 
         // Inspect name.
@@ -126,10 +129,19 @@ impl<'a, 'b> Sym<'a, 'b> {
             }
         }
 
+        static FILE_PREFIXES: &[&str] = &[
+            "/rustc/",
+            "src/libstd/",
+            "src/libpanic_unwind/",
+            "src/libtest/",
+        ];
+
         // Inspect filename.
         if let Some(ref filename) = self.filename {
             let filename = filename.to_string_lossy();
-            if filename.starts_with("/rustc/") || filename.contains("/.cargo/registry/src/") {
+            if FILE_PREFIXES.iter().any(|x| filename.starts_with(x))
+                || filename.contains("/.cargo/registry/src/")
+            {
                 return true;
             }
         }
@@ -202,6 +214,7 @@ fn is_post_panic_code(name: &Option<String>) -> bool {
         "core::panicking::panic_fmt",
         "color_backtrace::create_panic_handler",
         "std::panicking::begin_panic",
+        "begin_panic_fmt",
     ];
 
     match name {
