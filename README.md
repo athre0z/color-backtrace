@@ -13,3 +13,6 @@ To enable it, simply place this code somewhere in your app initialization code:
 ```rust
 color_backtrace::install();
 ```
+
+### Screenshot
+![Screenshot](https://mainframe.pw/u/g5nrTt2w0wAwskFO.png)
