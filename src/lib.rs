@@ -74,27 +74,25 @@ pub fn get_verbosity() -> Verbosity {
 /// Create a `color_backtrace` panic handler.
 ///
 /// This can be used if you want to combine the handler with other handlers.
-pub fn create_panic_handler(settings: Settings) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
+pub fn create_panic_handler(
+    settings: Settings,
+) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
     let mutex = Mutex::new(());
     Box::new(move |pi| {
         // Prevent mixed up printing when multiple threads panic at once.
-        let _lock = mutex.lock();
-
-        PanicHandler::new(pi, settings.clone()).go().unwrap();
+        let _lock = mutex.lock().unwrap();
+        PanicHandler::new(pi, &settings).go().unwrap();
     })
 }
 
-/// Install the `color_backtrace` handler, by calling `std::panic::set_hook`.
+/// Install the `color_backtrace` handler with default settings.
 pub fn install() {
     std::panic::set_hook(create_panic_handler(Settings::new()))
 }
 
+/// Install the `color_backtrace` handler with custom settings.
 pub fn install_with_settings(settings: Settings) {
     std::panic::set_hook(create_panic_handler(settings))
-}
-
-pub fn install_with_custom_message(custom_message: &'static str) {
-    std::panic::set_hook(create_panic_handler(Settings::new().message(custom_message).clone()))
 }
 
 // ============================================================================================== //
@@ -209,31 +207,21 @@ impl<'a, 'b> Sym<'a, 'b> {
 // [Core panic handler logic]                                                                     //
 // ============================================================================================== //
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Settings {
-    message: Option<String>
+    message: String,
 }
 
-// Non consuming setting builder
 impl Settings {
-    pub fn new() -> Settings {
-        return Settings {
-            message: None
+    pub fn new() -> Self {
+        Self {
+            message: "The application panicked (crashed).".to_owned(),
         }
     }
 
-    pub fn message<S>(&mut self, message: S)
-    -> &mut Settings where S: Into<String> {
-        let message = message.into();
-        self.message = Some(message);
+    pub fn message(mut self, message: impl Into<String>) -> Self {
+        self.message = message.into();
         self
-    }
-
-
-    const DEFAULT_PANIC_MESSAGE: &'static str = "Oh noez! Panic! 💥";
-
-    fn get_message(&self) -> String {
-        self.message.clone().unwrap_or_else(|| Settings::DEFAULT_PANIC_MESSAGE.to_string())
     }
 }
 
@@ -241,7 +229,7 @@ struct PanicHandler<'a> {
     pi: &'a PanicInfo<'a>,
     v: Verbosity,
     t: Box<StderrTerminal>,
-    settings: Settings,
+    settings: &'a Settings,
 }
 
 fn is_post_panic_code(name: &Option<String>) -> bool {
@@ -335,7 +323,7 @@ impl<'a> PanicHandler<'a> {
 
     fn print_panic_info(&mut self) -> IOResult {
         self.t.fg(color::RED)?;
-        writeln!(self.t, "{}", self.settings.get_message())?;
+        writeln!(self.t, "{}", self.settings.message)?;
         self.t.reset()?;
 
         // Print panic message.
@@ -400,9 +388,10 @@ impl<'a> PanicHandler<'a> {
         Ok(())
     }
 
-    fn new(pi: &'a PanicInfo, settings: Settings) -> Self {
+    fn new(pi: &'a PanicInfo, settings: &'a Settings) -> Self {
         Self {
-            pi, settings,
+            pi,
+            settings,
             v: get_verbosity(),
             t: term::stderr().unwrap(),
         }
