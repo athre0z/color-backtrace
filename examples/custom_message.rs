@@ -1,4 +1,5 @@
 fn main() {
-    color_backtrace::install_with_custom_message("\"Professional\" message.");
+    use color_backtrace::{install_with_settings, Settings};
+    install_with_settings(Settings::new().message("Custom message!"));
     assert_eq!(1, 2);
 }
