@@ -74,19 +74,23 @@ pub fn get_verbosity() -> Verbosity {
 /// Create a `color_backtrace` panic handler.
 ///
 /// This can be used if you want to combine the handler with other handlers.
-pub fn create_panic_handler() -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
+pub fn create_panic_handler(message: &'static str) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
     let mutex = Mutex::new(());
     Box::new(move |pi| {
         // Prevent mixed up printing when multiple threads panic at once.
         let _lock = mutex.lock();
 
-        PanicHandler::new(pi).go().unwrap();
+        PanicHandler::new(pi, message).go().unwrap();
     })
 }
 
 /// Install the `color_backtrace` handler, by calling `std::panic::set_hook`.
 pub fn install() {
-    std::panic::set_hook(create_panic_handler());
+    std::panic::set_hook(create_panic_handler("Oh noez! Panic! 💥"));
+}
+
+pub fn install_with_custom_message(custom_message: &'static str) {
+    std::panic::set_hook(create_panic_handler(custom_message))
 }
 
 // ============================================================================================== //
@@ -205,6 +209,7 @@ struct PanicHandler<'a> {
     pi: &'a PanicInfo<'a>,
     v: Verbosity,
     t: Box<StderrTerminal>,
+    message: &'a str
 }
 
 fn is_post_panic_code(name: &Option<String>) -> bool {
@@ -298,7 +303,7 @@ impl<'a> PanicHandler<'a> {
 
     fn print_panic_info(&mut self) -> IOResult {
         self.t.fg(color::RED)?;
-        writeln!(self.t, "Oh noez! Panic! 💥")?;
+        writeln!(self.t, "{}", &*self.message)?;
         self.t.reset()?;
 
         // Print panic message.
@@ -363,9 +368,9 @@ impl<'a> PanicHandler<'a> {
         Ok(())
     }
 
-    fn new(pi: &'a PanicInfo) -> Self {
+    fn new(pi: &'a PanicInfo, message: &'static str) -> Self {
         Self {
-            pi,
+            pi, message,
             v: get_verbosity(),
             t: term::stderr().unwrap(),
         }
