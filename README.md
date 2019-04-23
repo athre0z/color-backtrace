@@ -24,6 +24,8 @@ color-backtrace = { version = "0.1" }
 To enable it, simply place this code somewhere in your app initialization code:
 ```rust
 color_backtrace::install();
+// or
+color_backtrace::install_with_custom_message("\"Professional\" message");
 ```
 
 ### Features
