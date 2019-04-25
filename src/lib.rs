@@ -30,8 +30,7 @@
 
 use backtrace;
 use std::fs::File;
-use std::io::BufReader;
-use std::io::{BufRead, ErrorKind};
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::panic::PanicInfo;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -41,7 +40,7 @@ use term::{self, color, StderrTerminal};
 // [Result / Error types]                                                                         //
 // ============================================================================================== //
 
-type IOResult<T = ()> = Result<T, std::io::Error>;
+type IOResult = Result<(), std::io::Error>;
 
 // ============================================================================================== //
 // [Verbosity management]                                                                         //
@@ -57,13 +56,14 @@ pub enum Verbosity {
     /// Everything in `MEDIUM` plus source snippets for all backtrace locations.
     FULL,
 }
-
-/// Query the verbosity level.
-pub fn get_verbosity() -> Verbosity {
-    match std::env::var("RUST_BACKTRACE") {
-        Ok(ref x) if x == "full" => Verbosity::FULL,
-        Ok(_) => Verbosity::MEDIUM,
-        Err(_) => Verbosity::MINIMAL,
+impl Verbosity {
+    /// Query the verbosity level.
+    pub fn get() -> Verbosity {
+        match std::env::var("RUST_BACKTRACE") {
+            Ok(ref x) if x == "full" => Verbosity::FULL,
+            Ok(_) => Verbosity::MEDIUM,
+            Err(_) => Verbosity::MINIMAL,
+        }
     }
 }
 
@@ -111,7 +111,7 @@ impl<'a, 'b> Sym<'a, 'b> {
     /// dependency. If it fails to detect some patterns in your code base, feel
     /// free to drop an issue / a pull request!
     fn is_dependency_code(&self) -> bool {
-        static SYM_PREFIXES: &[&str] = &[
+        const SYM_PREFIXES: &[&str] = &[
             "std::",
             "core::",
             "backtrace::backtrace::",
@@ -135,7 +135,7 @@ impl<'a, 'b> Sym<'a, 'b> {
             }
         }
 
-        static FILE_PREFIXES: &[&str] = &[
+        const FILE_PREFIXES: &[&str] = &[
             "/rustc/",
             "src/libstd/",
             "src/libpanic_unwind/",
@@ -233,7 +233,7 @@ struct PanicHandler<'a> {
 }
 
 fn is_post_panic_code(name: &Option<String>) -> bool {
-    static SYM_PREFIXES: &[&str] = &[
+    const SYM_PREFIXES: &[&str] = &[
         "_rust_begin_unwind",
         "core::result::unwrap_failed",
         "core::panicking::panic_fmt",
@@ -243,7 +243,7 @@ fn is_post_panic_code(name: &Option<String>) -> bool {
     ];
 
     match name {
-        Some(ref name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+        Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
         None => false,
     }
 }
@@ -392,7 +392,7 @@ impl<'a> PanicHandler<'a> {
         Self {
             pi,
             settings,
-            v: get_verbosity(),
+            v: Verbosity::get(),
             t: term::stderr().unwrap(),
         }
     }
