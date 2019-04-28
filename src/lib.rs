@@ -24,9 +24,9 @@
 //!
 //! ### Controlling verbosity
 //! The verbosity is configured via the `RUST_BACKTRACE` environment variable.
-//! An unset `RUST_BACKTRACE` corresponds to [minimal](Verbosity::MINIMAL),
-//! `RUST_BACKTRACE=1` to [medium](Verbosity::MEDIUM) and `RUST_BACKTRACE=full`
-//! to [full](Verbosity::FULL) verbosity levels.
+//! An unset `RUST_BACKTRACE` corresponds to [minimal](Verbosity::Minimal),
+//! `RUST_BACKTRACE=1` to [medium](Verbosity::Medium) and `RUST_BACKTRACE=full`
+//! to [full](Verbosity::Full) verbosity levels.
 
 use backtrace;
 use std::fs::File;
@@ -50,20 +50,20 @@ type IOResult<T = ()> = Result<T, std::io::Error>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Verbosity {
     /// Print a small message including the panic payload and the panic location.
-    MINIMAL,
-    /// Everything in `MINIMAL` and additionally print a backtrace.
-    MEDIUM,
-    /// Everything in `MEDIUM` plus source snippets for all backtrace locations.
-    FULL,
+    Minimal,
+    /// Everything in `Minimal` and additionally print a backtrace.
+    Medium,
+    /// Everything in `Medium` plus source snippets for all backtrace locations.
+    Full,
 }
 
 impl Verbosity {
     /// Query the verbosity level.
-    pub fn get() -> Verbosity {
+    pub fn get() -> Self {
         match std::env::var("RUST_BACKTRACE") {
-            Ok(ref x) if x == "full" => Verbosity::FULL,
-            Ok(_) => Verbosity::MEDIUM,
-            Err(_) => Verbosity::MINIMAL,
+            Ok(ref x) if x == "full" => Verbosity::Full,
+            Ok(_) => Verbosity::Medium,
+            Err(_) => Verbosity::Minimal,
         }
     }
 }
@@ -195,7 +195,7 @@ impl<'a, 'b> Sym<'a, 'b> {
         }
 
         // Maybe print source.
-        if self.handler.v >= Verbosity::FULL {
+        if self.handler.v >= Verbosity::Full {
             self.print_source_if_avail()?;
         }
 
@@ -355,15 +355,15 @@ impl<'a> PanicHandler<'a> {
         }
 
         // Print some info on how to increase verbosity.
-        if self.v == Verbosity::MINIMAL {
+        if self.v == Verbosity::Minimal {
             write!(self.t, "\nBacktrace omitted. Run with ")?;
             self.t.fg(color::BRIGHT_WHITE)?;
             write!(self.t, "RUST_BACKTRACE=1")?;
             self.t.reset()?;
             writeln!(self.t, " environment variable to display it.")?;
         }
-        if self.v <= Verbosity::MEDIUM {
-            if self.v == Verbosity::MEDIUM {
+        if self.v <= Verbosity::Medium {
+            if self.v == Verbosity::Medium {
                 // If exactly medium, no newline was printed before.
                 writeln!(self.t)?;
             }
@@ -381,7 +381,7 @@ impl<'a> PanicHandler<'a> {
     fn go(mut self) -> IOResult {
         self.print_panic_info()?;
 
-        if self.v >= Verbosity::MEDIUM {
+        if self.v >= Verbosity::Medium {
             self.print_backtrace()?;
         }
 
