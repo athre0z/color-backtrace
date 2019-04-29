@@ -99,14 +99,14 @@ pub fn install_with_settings(settings: Settings) {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-struct Sym<'a, 'b> {
+struct Frame<'a, 'b> {
     handler: &'a mut PanicHandler<'b>,
     name: Option<String>,
     lineno: Option<u32>,
     filename: Option<PathBuf>,
 }
 
-impl<'a, 'b> Sym<'a, 'b> {
+impl<'a, 'b> Frame<'a, 'b> {
     /// Heuristically determine whether the symbol is likely to be part of a
     /// dependency. If it fails to detect some patterns in your code base, feel
     /// free to drop an issue / a pull request!
@@ -305,10 +305,10 @@ impl<'a> PanicHandler<'a> {
             self.t.reset()?;
         }
 
-        // Turn them into `Symbol` objects and print them.
+        // Turn them into `Frame` objects and print them.
         let symbols = symbols.into_iter().skip(cutoff).zip(cutoff..);
         for ((name, lineno, filename), i) in symbols {
-            let mut sym = Sym {
+            let mut sym = Frame {
                 handler: self,
                 name,
                 lineno,
