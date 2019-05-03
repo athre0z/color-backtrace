@@ -58,8 +58,8 @@ pub enum Verbosity {
 }
 
 impl Verbosity {
-    /// Query the verbosity level.
-    pub fn get() -> Self {
+    /// Get the verbosity level from the `RUST_BACKTRACE` env variable.
+    pub fn from_env() -> Self {
         match std::env::var("RUST_BACKTRACE") {
             Ok(ref x) if x == "full" => Verbosity::Full,
             Ok(_) => Verbosity::Medium,
@@ -101,7 +101,7 @@ pub fn install_with_settings(settings: Settings) {
 // ============================================================================================== //
 
 struct Frame<'a, 'b> {
-    handler: &'a mut PanicPrinter<'b>,
+    printer: &'a mut PanicPrinter<'b>,
     name: Option<String>,
     lineno: Option<u32>,
     filename: Option<PathBuf>,
@@ -163,12 +163,12 @@ impl<'a, 'b> Frame<'a, 'b> {
             _ => return Ok(()),
         };
 
-        self.handler.print_source_if_avail(filename, lineno)
+        self.printer.print_source_if_avail(filename, lineno)
     }
 
     fn print_loc(&mut self, i: usize) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
-        let t = &mut self.handler.s.out;
+        let t = &mut self.printer.s.out;
 
         // Print frame index.
         write!(t, "{:>2}: ", i)?;
@@ -196,7 +196,7 @@ impl<'a, 'b> Frame<'a, 'b> {
         }
 
         // Maybe print source.
-        if self.handler.v >= Verbosity::Full {
+        if self.printer.s.verbosity >= Verbosity::Full {
             self.print_source_if_avail()?;
         }
 
@@ -212,11 +212,13 @@ impl<'a, 'b> Frame<'a, 'b> {
 pub struct Settings {
     message: String,
     out: Box<dyn PanicOutputStream>,
+    verbosity: Verbosity,
 }
 
 impl Settings {
     pub fn new() -> Self {
         Self {
+            verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
             out: Box::new(ColorizedStderrOutput::new(term::stderr().unwrap())),
         }
@@ -229,6 +231,11 @@ impl Settings {
 
     pub fn output_stream(mut self, out: Box<dyn PanicOutputStream>) -> Self {
         self.out = out;
+        self
+    }
+
+    pub fn verbosity(mut self, v: Verbosity) -> Self {
+        self.verbosity = v;
         self
     }
 }
@@ -334,7 +341,6 @@ impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 
 struct PanicPrinter<'a> {
     pi: &'a PanicInfo<'a>,
-    v: Verbosity,
     s: &'a mut Settings,
 }
 
@@ -415,7 +421,7 @@ impl<'a> PanicPrinter<'a> {
         let symbols = symbols.into_iter().skip(cutoff).zip(cutoff..);
         for ((name, lineno, filename), i) in symbols {
             let mut sym = Frame {
-                handler: self,
+                printer: self,
                 name,
                 lineno,
                 filename,
@@ -461,15 +467,15 @@ impl<'a> PanicPrinter<'a> {
         }
 
         // Print some info on how to increase verbosity.
-        if self.v == Verbosity::Minimal {
+        if self.s.verbosity == Verbosity::Minimal {
             write!(self.s.out, "\nBacktrace omitted. Run with ")?;
             self.s.out.fg(color::BRIGHT_WHITE)?;
             write!(self.s.out, "RUST_BACKTRACE=1")?;
             self.s.out.reset()?;
             writeln!(self.s.out, " environment variable to display it.")?;
         }
-        if self.v <= Verbosity::Medium {
-            if self.v == Verbosity::Medium {
+        if self.s.verbosity <= Verbosity::Medium {
+            if self.s.verbosity == Verbosity::Medium {
                 // If exactly medium, no newline was printed before.
                 writeln!(self.s.out)?;
             }
@@ -487,7 +493,7 @@ impl<'a> PanicPrinter<'a> {
     fn go(mut self) -> IOResult {
         self.print_panic_info()?;
 
-        if self.v >= Verbosity::Medium {
+        if self.s.verbosity >= Verbosity::Medium {
             self.print_backtrace()?;
         }
 
@@ -495,11 +501,7 @@ impl<'a> PanicPrinter<'a> {
     }
 
     fn new(pi: &'a PanicInfo, settings: &'a mut Settings) -> Self {
-        Self {
-            pi,
-            s: settings,
-            v: Verbosity::get(),
-        }
+        Self { pi, s: settings }
     }
 }
 
