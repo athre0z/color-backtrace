@@ -77,11 +77,12 @@ impl Verbosity {
 pub fn create_panic_handler(
     settings: Settings,
 ) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
-    let mutex = Mutex::new(());
+    // Aside from syncing access to the settings, this also prevents mixed up
+    // printing when multiple threads panic at once.
+    let settings_mutex = Mutex::new(settings);
     Box::new(move |pi| {
-        // Prevent mixed up printing when multiple threads panic at once.
-        let _lock = mutex.lock().unwrap();
-        PanicHandler::new(pi, &settings).go().unwrap();
+        let mut settings_lock = settings_mutex.lock().unwrap();
+        PanicHandler::new(pi, &mut *settings_lock).go().unwrap();
     })
 }
 
@@ -167,7 +168,7 @@ impl<'a, 'b> Frame<'a, 'b> {
 
     fn print_loc(&mut self, i: usize) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
-        let t = &mut self.handler.t;
+        let t = &mut self.handler.s.out;
 
         // Print frame index.
         write!(t, "{:>2}: ", i)?;
@@ -207,20 +208,27 @@ impl<'a, 'b> Frame<'a, 'b> {
 // [Settings]                                                                                     //
 // ============================================================================================== //
 
-#[derive(Debug, Clone)]
+// #[derive(Debug, Clone)]
 pub struct Settings {
     message: String,
+    out: Box<dyn PanicOutputStream>,
 }
 
 impl Settings {
     pub fn new() -> Self {
         Self {
             message: "The application panicked (crashed).".to_owned(),
+            out: Box::new(ColorizedStderrOutput::new(term::stderr().unwrap())),
         }
     }
 
     pub fn message(mut self, message: impl Into<String>) -> Self {
         self.message = message.into();
+        self
+    }
+
+    pub fn output_stream(mut self, out: Box<dyn PanicOutputStream>) -> Self {
+        self.out = out;
         self
     }
 }
@@ -229,14 +237,19 @@ impl Settings {
 // [Term output abtraction]                                                                       //
 // ============================================================================================== //
 
-trait Colorize {
+pub trait Colorize {
     fn fg(&mut self, color: color::Color) -> IOResult;
     fn bg(&mut self, color: color::Color) -> IOResult;
     fn reset(&mut self) -> IOResult;
 }
 
-trait PanicOutputStream: Colorize + Write {}
+pub trait PanicOutputStream: Colorize + Write + Send {}
 
+// ---------------------------------------------------------------------------------------------- //
+// [ColorizedStderrOutput]                                                                        //
+// ---------------------------------------------------------------------------------------------- //
+
+/// Output implementation that prints to `stderr`, with colors enabled.
 pub struct ColorizedStderrOutput {
     term: Box<StderrTerminal>,
 }
@@ -273,17 +286,23 @@ impl Write for ColorizedStderrOutput {
 
 impl PanicOutputStream for ColorizedStderrOutput {}
 
-pub struct StreamOutput<T: Write> {
+// ---------------------------------------------------------------------------------------------- //
+// [StreamOutput]                                                                                 //
+// ---------------------------------------------------------------------------------------------- //
+
+/// Output implementation printing to an arbitraty `std::io::Write` stream,
+/// without colors.
+pub struct StreamOutput<T: Write + Send> {
     stream: T,
 }
 
-impl<T: Write> StreamOutput<T> {
+impl<T: Write + Send> StreamOutput<T> {
     pub fn new(stream: T) -> Self {
         Self { stream }
     }
 }
 
-impl<T: Write> Write for StreamOutput<T> {
+impl<T: Write + Send> Write for StreamOutput<T> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
         self.stream.write(buf)
     }
@@ -293,7 +312,7 @@ impl<T: Write> Write for StreamOutput<T> {
     }
 }
 
-impl<T: Write> Colorize for StreamOutput<T> {
+impl<T: Write + Send> Colorize for StreamOutput<T> {
     fn fg(&mut self, _color: color::Color) -> IOResult {
         Ok(())
     }
@@ -307,7 +326,7 @@ impl<T: Write> Colorize for StreamOutput<T> {
     }
 }
 
-impl<T: Write> PanicOutputStream for StreamOutput<T> {}
+impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 
 // ============================================================================================== //
 // [Core panic handler logic]                                                                     //
@@ -316,8 +335,7 @@ impl<T: Write> PanicOutputStream for StreamOutput<T> {}
 struct PanicHandler<'a> {
     pi: &'a PanicInfo<'a>,
     v: Verbosity,
-    t: Box<dyn PanicOutputStream>,
-    settings: &'a Settings,
+    s: &'a mut Settings,
 }
 
 fn is_post_panic_code(name: &Option<String>) -> bool {
@@ -351,11 +369,11 @@ impl<'a> PanicHandler<'a> {
         for (line, cur_line_no) in surrounding_src.zip(start_line..) {
             if cur_line_no == lineno {
                 // Print actual source line with brighter color.
-                self.t.fg(color::BRIGHT_WHITE)?;
-                writeln!(self.t, "{:>8} > {}", cur_line_no, line?)?;
-                self.t.reset()?;
+                self.s.out.fg(color::BRIGHT_WHITE)?;
+                writeln!(self.s.out, "{:>8} > {}", cur_line_no, line?)?;
+                self.s.out.reset()?;
             } else {
-                writeln!(self.t, "{:>8} │ {}", cur_line_no, line?)?;
+                writeln!(self.s.out, "{:>8} │ {}", cur_line_no, line?)?;
             }
         }
 
@@ -363,7 +381,7 @@ impl<'a> PanicHandler<'a> {
     }
 
     fn print_backtrace(&mut self) -> IOResult {
-        writeln!(self.t, "{:━^80}", " BACKTRACE ")?;
+        writeln!(self.s.out, "{:━^80}", " BACKTRACE ")?;
 
         // Collect frame info.
         let mut symbols = Vec::new();
@@ -388,9 +406,9 @@ impl<'a> PanicHandler<'a> {
 
         if cutoff != 0 {
             let text = format!("({} post panic frames hidden)", cutoff);
-            self.t.fg(color::BRIGHT_CYAN)?;
-            writeln!(self.t, "{:^80}", text)?;
-            self.t.reset()?;
+            self.s.out.fg(color::BRIGHT_CYAN)?;
+            writeln!(self.s.out, "{:^80}", text)?;
+            self.s.out.reset()?;
         }
 
         // Turn them into `Frame` objects and print them.
@@ -410,9 +428,9 @@ impl<'a> PanicHandler<'a> {
     }
 
     fn print_panic_info(&mut self) -> IOResult {
-        self.t.fg(color::RED)?;
-        writeln!(self.t, "{}", self.settings.message)?;
-        self.t.reset()?;
+        self.s.out.fg(color::RED)?;
+        writeln!(self.s.out, "{}", self.s.message)?;
+        self.s.out.reset()?;
 
         // Print panic message.
         let payload = self
@@ -423,44 +441,44 @@ impl<'a> PanicHandler<'a> {
             .or_else(|| self.pi.payload().downcast_ref::<&str>().map(|x| *x))
             .unwrap_or("<non string panic payload>");
 
-        write!(self.t, "Message:  ")?;
-        self.t.fg(color::CYAN)?;
-        writeln!(self.t, "{}", payload)?;
-        self.t.reset()?;
+        write!(self.s.out, "Message:  ")?;
+        self.s.out.fg(color::CYAN)?;
+        writeln!(self.s.out, "{}", payload)?;
+        self.s.out.reset()?;
 
         // If known, print panic location.
-        write!(self.t, "Location: ")?;
+        write!(self.s.out, "Location: ")?;
         if let Some(loc) = self.pi.location() {
-            self.t.fg(color::MAGENTA)?;
-            write!(self.t, "{}", loc.file())?;
-            self.t.fg(color::WHITE)?;
-            write!(self.t, ":")?;
-            self.t.fg(color::MAGENTA)?;
-            writeln!(self.t, "{}", loc.line())?;
-            self.t.reset()?;
+            self.s.out.fg(color::MAGENTA)?;
+            write!(self.s.out, "{}", loc.file())?;
+            self.s.out.fg(color::WHITE)?;
+            write!(self.s.out, ":")?;
+            self.s.out.fg(color::MAGENTA)?;
+            writeln!(self.s.out, "{}", loc.line())?;
+            self.s.out.reset()?;
         } else {
-            writeln!(self.t, "<unknown>")?;
+            writeln!(self.s.out, "<unknown>")?;
         }
 
         // Print some info on how to increase verbosity.
         if self.v == Verbosity::Minimal {
-            write!(self.t, "\nBacktrace omitted. Run with ")?;
-            self.t.fg(color::BRIGHT_WHITE)?;
-            write!(self.t, "RUST_BACKTRACE=1")?;
-            self.t.reset()?;
-            writeln!(self.t, " environment variable to display it.")?;
+            write!(self.s.out, "\nBacktrace omitted. Run with ")?;
+            self.s.out.fg(color::BRIGHT_WHITE)?;
+            write!(self.s.out, "RUST_BACKTRACE=1")?;
+            self.s.out.reset()?;
+            writeln!(self.s.out, " environment variable to display it.")?;
         }
         if self.v <= Verbosity::Medium {
             if self.v == Verbosity::Medium {
                 // If exactly medium, no newline was printed before.
-                writeln!(self.t)?;
+                writeln!(self.s.out)?;
             }
 
-            write!(self.t, "Run with ")?;
-            self.t.fg(color::BRIGHT_WHITE)?;
-            write!(self.t, "RUST_BACKTRACE=full")?;
-            self.t.reset()?;
-            writeln!(self.t, " to include source snippets.")?;
+            write!(self.s.out, "Run with ")?;
+            self.s.out.fg(color::BRIGHT_WHITE)?;
+            write!(self.s.out, "RUST_BACKTRACE=full")?;
+            self.s.out.reset()?;
+            writeln!(self.s.out, " to include source snippets.")?;
         }
 
         Ok(())
@@ -476,12 +494,11 @@ impl<'a> PanicHandler<'a> {
         Ok(())
     }
 
-    fn new(pi: &'a PanicInfo, settings: &'a Settings) -> Self {
+    fn new(pi: &'a PanicInfo, settings: &'a mut Settings) -> Self {
         Self {
             pi,
-            settings,
+            s: settings,
             v: Verbosity::get(),
-            t: Box::new(ColorizedStderrOutput::new(term::stderr().unwrap())),
         }
     }
 }
