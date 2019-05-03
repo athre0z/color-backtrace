@@ -82,7 +82,7 @@ pub fn create_panic_handler(
     let settings_mutex = Mutex::new(settings);
     Box::new(move |pi| {
         let mut settings_lock = settings_mutex.lock().unwrap();
-        PanicHandler::new(pi, &mut *settings_lock).go().unwrap();
+        PanicPrinter::new(pi, &mut *settings_lock).go().unwrap();
     })
 }
 
@@ -101,7 +101,7 @@ pub fn install_with_settings(settings: Settings) {
 // ============================================================================================== //
 
 struct Frame<'a, 'b> {
-    handler: &'a mut PanicHandler<'b>,
+    handler: &'a mut PanicPrinter<'b>,
     name: Option<String>,
     lineno: Option<u32>,
     filename: Option<PathBuf>,
@@ -329,10 +329,10 @@ impl<T: Write + Send> Colorize for StreamOutput<T> {
 impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 
 // ============================================================================================== //
-// [Core panic handler logic]                                                                     //
+// [PanicPrinter]                                                                                 //
 // ============================================================================================== //
 
-struct PanicHandler<'a> {
+struct PanicPrinter<'a> {
     pi: &'a PanicInfo<'a>,
     v: Verbosity,
     s: &'a mut Settings,
@@ -354,7 +354,7 @@ fn is_post_panic_code(name: &Option<String>) -> bool {
     }
 }
 
-impl<'a> PanicHandler<'a> {
+impl<'a> PanicPrinter<'a> {
     fn print_source_if_avail(&mut self, filename: &Path, lineno: u32) -> IOResult {
         let file = match File::open(filename) {
             Ok(file) => file,
