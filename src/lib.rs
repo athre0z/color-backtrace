@@ -30,7 +30,7 @@
 
 use backtrace;
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::panic::PanicInfo;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -204,7 +204,7 @@ impl<'a, 'b> Frame<'a, 'b> {
 }
 
 // ============================================================================================== //
-// [Core panic handler logic]                                                                     //
+// [Settings]                                                                                     //
 // ============================================================================================== //
 
 #[derive(Debug, Clone)]
@@ -225,10 +225,98 @@ impl Settings {
     }
 }
 
+// ============================================================================================== //
+// [Term output abtraction]                                                                       //
+// ============================================================================================== //
+
+trait Colorize {
+    fn fg(&mut self, color: color::Color) -> IOResult;
+    fn bg(&mut self, color: color::Color) -> IOResult;
+    fn reset(&mut self) -> IOResult;
+}
+
+trait PanicOutputStream: Colorize + Write {}
+
+pub struct ColorizedStderrOutput {
+    term: Box<StderrTerminal>,
+}
+
+impl ColorizedStderrOutput {
+    pub fn new(term: Box<StderrTerminal>) -> Self {
+        Self { term }
+    }
+}
+
+impl Colorize for ColorizedStderrOutput {
+    fn fg(&mut self, color: color::Color) -> IOResult {
+        Ok(self.term.fg(color)?)
+    }
+
+    fn bg(&mut self, color: color::Color) -> IOResult {
+        Ok(self.term.bg(color)?)
+    }
+
+    fn reset(&mut self) -> IOResult {
+        Ok(self.term.reset()?)
+    }
+}
+
+impl Write for ColorizedStderrOutput {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+        self.term.get_mut().write(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), std::io::Error> {
+        self.term.get_mut().flush()
+    }
+}
+
+impl PanicOutputStream for ColorizedStderrOutput {}
+
+pub struct StreamOutput<T: Write> {
+    stream: T,
+}
+
+impl<T: Write> StreamOutput<T> {
+    pub fn new(stream: T) -> Self {
+        Self { stream }
+    }
+}
+
+impl<T: Write> Write for StreamOutput<T> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+        self.stream.write(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), std::io::Error> {
+        self.stream.flush()
+    }
+}
+
+impl<T: Write> Colorize for StreamOutput<T> {
+    fn fg(&mut self, _color: color::Color) -> IOResult {
+        Ok(())
+    }
+
+    fn bg(&mut self, _color: color::Color) -> IOResult {
+        Ok(())
+    }
+
+    fn reset(&mut self) -> IOResult {
+        Ok(())
+    }
+}
+
+impl<T: Write> PanicOutputStream for StreamOutput<T> {}
+
+// ============================================================================================== //
+// [Core panic handler logic]                                                                     //
+// ============================================================================================== //
+
 struct PanicHandler<'a> {
     pi: &'a PanicInfo<'a>,
     v: Verbosity,
-    t: Box<StderrTerminal>,
+    t: Box<dyn PanicOutputStream>,
     settings: &'a Settings,
 }
 
@@ -393,7 +481,7 @@ impl<'a> PanicHandler<'a> {
             pi,
             settings,
             v: Verbosity::get(),
-            t: term::stderr().unwrap(),
+            t: Box::new(ColorizedStderrOutput::new(term::stderr().unwrap())),
         }
     }
 }
