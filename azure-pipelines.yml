@@ -1,0 +1,11 @@
+pool:
+  vmImage: 'Ubuntu-16.04'
+
+steps:
+- script: |
+    sudo apt-get install gcc curl -y
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  displayName: 'Installing Rust'
+- script: |
+    ~/.cargo/bin/cargo build
+  displayName: 'Building color-backtrace'
