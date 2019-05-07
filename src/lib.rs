@@ -166,22 +166,40 @@ impl<'a, 'b> Frame<'a, 'b> {
         self.printer.print_source_if_avail(filename, lineno)
     }
 
-    fn print_loc(&mut self, i: usize) -> IOResult {
+    fn print(&mut self, i: usize) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
         let t = &mut self.printer.s.out;
 
         // Print frame index.
         write!(t, "{:>2}: ", i)?;
 
-        // Print function name, if known.
-        let name_fallback = "<unknown>".to_owned();
-        let name = self.name.as_ref().unwrap_or(&name_fallback);
+        let name = self
+            .name
+            .as_ref()
+            .map(|x| x.as_str())
+            .unwrap_or("<unknown>");
+
+        // Does the function have a hash suffix?
+        // (dodging a dep on the regex crate here)
+        let has_hash_suffix = name.len() > 19
+            && &name[name.len() - 19..name.len() - 16] == "::h"
+            && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
+
+        // Print function name.
         t.fg(if is_dependency_code {
             color::GREEN
         } else {
             color::BRIGHT_RED
         })?;
-        writeln!(t, "{}", name)?;
+
+        if has_hash_suffix {
+            write!(t, "{}", &name[..name.len() - 19])?;
+            t.fg(color::BRIGHT_BLACK)?;
+            writeln!(t, "{}", &name[name.len() - 19..])?;
+        } else {
+            writeln!(t, "{}", name)?;
+        }
+
         t.reset()?;
 
         // Print source location, if known.
@@ -361,10 +379,7 @@ fn is_post_panic_code(name: &Option<String>) -> bool {
 }
 
 fn is_runtime_init_code(name: &Option<String>) -> bool {
-    const SYM_PREFIXES: &[&str] = &[
-        "std::rt::lang_start::",
-        "test::run_test::run_test_inner::",
-    ];
+    const SYM_PREFIXES: &[&str] = &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
 
     match name {
         Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
@@ -453,7 +468,7 @@ impl<'a> PanicPrinter<'a> {
                 filename,
             };
 
-            frame.print_loc(i)?;
+            frame.print(i)?;
         }
 
         if bottom_cutoff != num_symbols {
