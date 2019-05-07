@@ -107,9 +107,11 @@ struct Frame {
 }
 
 impl Frame {
-    /// Heuristically determine whether the symbol is likely to be part of a
-    /// dependency. If it fails to detect some patterns in your code base, feel
-    /// free to drop an issue / a pull request!
+    /// Heuristically determine whether the frame is likely to be part of a
+    /// dependency.
+    ///
+    /// If it fails to detect some patterns in your code base, feel free to drop
+    /// an issue / a pull request!
     fn is_dependency_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "std::",
@@ -155,6 +157,12 @@ impl Frame {
         false
     }
 
+    // Heuristically determine whether a frame is likely to be a post panic
+    // frame.
+    //
+    // Post panic frames are frames of a functions called after the actual panic
+    // is already in progress and don't contain any useful information for a
+    // reader of the backtrace.
     fn is_post_panic_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "_rust_begin_unwind",
@@ -171,14 +179,27 @@ impl Frame {
         }
     }
 
+    // Heuristically determine whether a frame is likely to be part of language
+    // runtime.
     fn is_runtime_init_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] =
             &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
 
-        match self.name.as_ref() {
-            Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
-            None => false,
+        let (name, file) = match (self.name.as_ref(), self.filename.as_ref()) {
+            (Some(name), Some(filename)) => (name, filename.to_string_lossy()),
+            _ => return false,
+        };
+
+        if SYM_PREFIXES.iter().any(|x| name.starts_with(x)) {
+            return true;
         }
+
+        // For Linux, this is the best rule for skipping test init I found.
+        if name == "{{closure}}" && file == "src/libtest/lib.rs" {
+            return true;
+        }
+
+        false
     }
 
     fn print_source_if_avail(&self, printer: &mut PanicPrinter<'_>) -> IOResult {
@@ -460,7 +481,7 @@ impl<'a> PanicPrinter<'a> {
             .zip(top_cutoff..);
 
         // Print surviving frames.
-        for (mut frame, i) in frames {
+        for (frame, i) in frames {
             frame.print(i, self)?;
         }
 
