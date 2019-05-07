@@ -360,6 +360,18 @@ fn is_post_panic_code(name: &Option<String>) -> bool {
     }
 }
 
+fn is_runtime_init_code(name: &Option<String>) -> bool {
+    const SYM_PREFIXES: &[&str] = &[
+        "std::rt::lang_start::",
+        "test::run_test::run_test_inner::",
+    ];
+
+    match name {
+        Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+        None => false,
+    }
+}
+
 impl<'a> PanicPrinter<'a> {
     fn print_source_if_avail(&mut self, filename: &Path, lineno: u32) -> IOResult {
         let file = match File::open(filename) {
@@ -390,10 +402,11 @@ impl<'a> PanicPrinter<'a> {
         writeln!(self.s.out, "{:━^80}", " BACKTRACE ")?;
 
         // Collect frame info.
-        let mut symbols = Vec::new();
+        let mut frames = Vec::new();
         backtrace::trace(|x| {
+            // TODO: Don't just drop unresolvable frames.
             backtrace::resolve(x.ip(), |sym| {
-                symbols.push((
+                frames.push((
                     sym.name().map(|x| x.to_string()),
                     sym.lineno(),
                     sym.filename().map(|x| x.into()),
@@ -404,30 +417,53 @@ impl<'a> PanicPrinter<'a> {
         });
 
         // Try to find where the interesting part starts...
-        let cutoff = symbols
+        let top_cutoff = frames
             .iter()
             .rposition(|x| is_post_panic_code(&x.0))
             .map(|x| x + 1)
             .unwrap_or(0);
 
-        if cutoff != 0 {
-            let text = format!("({} post panic frames hidden)", cutoff);
+        // Try to find where language init frames start ...
+        let bottom_cutoff = frames
+            .iter()
+            .position(|x| is_runtime_init_code(&x.0))
+            .unwrap_or(frames.len());
+
+        if top_cutoff != 0 {
+            let text = format!("({} post panic frames hidden)", top_cutoff);
             self.s.out.fg(color::BRIGHT_CYAN)?;
             writeln!(self.s.out, "{:^80}", text)?;
             self.s.out.reset()?;
         }
 
         // Turn them into `Frame` objects and print them.
-        let symbols = symbols.into_iter().skip(cutoff).zip(cutoff..);
+        let num_symbols = frames.len();
+        let symbols = frames
+            .into_iter()
+            .skip(top_cutoff)
+            .take(bottom_cutoff - top_cutoff)
+            .zip(top_cutoff..);
+
+        // Print surviving frames.
         for ((name, lineno, filename), i) in symbols {
-            let mut sym = Frame {
+            let mut frame = Frame {
                 printer: self,
                 name,
                 lineno,
                 filename,
             };
 
-            sym.print_loc(i)?;
+            frame.print_loc(i)?;
+        }
+
+        if bottom_cutoff != num_symbols {
+            let text = format!(
+                "({} runtime init frames hidden)",
+                num_symbols - bottom_cutoff
+            );
+            self.s.out.fg(color::BRIGHT_CYAN)?;
+            writeln!(self.s.out, "{:^80}", text)?;
+            self.s.out.reset()?;
         }
 
         Ok(())
