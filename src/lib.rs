@@ -100,14 +100,13 @@ pub fn install_with_settings(settings: Settings) {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-struct Frame<'a, 'b> {
-    printer: &'a mut PanicPrinter<'b>,
+struct Frame {
     name: Option<String>,
     lineno: Option<u32>,
     filename: Option<PathBuf>,
 }
 
-impl<'a, 'b> Frame<'a, 'b> {
+impl Frame {
     /// Heuristically determine whether the symbol is likely to be part of a
     /// dependency. If it fails to detect some patterns in your code base, feel
     /// free to drop an issue / a pull request!
@@ -156,19 +155,45 @@ impl<'a, 'b> Frame<'a, 'b> {
         false
     }
 
-    fn print_source_if_avail(&mut self) -> IOResult {
+    fn is_post_panic_code(&self) -> bool {
+        const SYM_PREFIXES: &[&str] = &[
+            "_rust_begin_unwind",
+            "core::result::unwrap_failed",
+            "core::panicking::panic_fmt",
+            "color_backtrace::create_panic_handler",
+            "std::panicking::begin_panic",
+            "begin_panic_fmt",
+        ];
+
+        match self.name.as_ref() {
+            Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+            None => false,
+        }
+    }
+
+    fn is_runtime_init_code(&self) -> bool {
+        const SYM_PREFIXES: &[&str] =
+            &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
+
+        match self.name.as_ref() {
+            Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+            None => false,
+        }
+    }
+
+    fn print_source_if_avail(&self, printer: &mut PanicPrinter<'_>) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
             _ => return Ok(()),
         };
 
-        self.printer.print_source_if_avail(filename, lineno)
+        printer.print_source_if_avail(filename, lineno)
     }
 
-    fn print(&mut self, i: usize) -> IOResult {
+    fn print(&self, i: usize, printer: &mut PanicPrinter<'_>) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
-        let t = &mut self.printer.s.out;
+        let t = &mut printer.s.out;
 
         // Print frame index.
         write!(t, "{:>2}: ", i)?;
@@ -214,8 +239,8 @@ impl<'a, 'b> Frame<'a, 'b> {
         }
 
         // Maybe print source.
-        if self.printer.s.verbosity >= Verbosity::Full {
-            self.print_source_if_avail()?;
+        if printer.s.verbosity >= Verbosity::Full {
+            self.print_source_if_avail(printer)?;
         }
 
         Ok(())
@@ -362,31 +387,6 @@ struct PanicPrinter<'a> {
     s: &'a mut Settings,
 }
 
-fn is_post_panic_code(name: &Option<String>) -> bool {
-    const SYM_PREFIXES: &[&str] = &[
-        "_rust_begin_unwind",
-        "core::result::unwrap_failed",
-        "core::panicking::panic_fmt",
-        "color_backtrace::create_panic_handler",
-        "std::panicking::begin_panic",
-        "begin_panic_fmt",
-    ];
-
-    match name {
-        Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
-        None => false,
-    }
-}
-
-fn is_runtime_init_code(name: &Option<String>) -> bool {
-    const SYM_PREFIXES: &[&str] = &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
-
-    match name {
-        Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
-        None => false,
-    }
-}
-
 impl<'a> PanicPrinter<'a> {
     fn print_source_if_avail(&mut self, filename: &Path, lineno: u32) -> IOResult {
         let file = match File::open(filename) {
@@ -421,11 +421,11 @@ impl<'a> PanicPrinter<'a> {
         backtrace::trace(|x| {
             // TODO: Don't just drop unresolvable frames.
             backtrace::resolve(x.ip(), |sym| {
-                frames.push((
-                    sym.name().map(|x| x.to_string()),
-                    sym.lineno(),
-                    sym.filename().map(|x| x.into()),
-                ));
+                frames.push(Frame {
+                    name: sym.name().map(|x| x.to_string()),
+                    lineno: sym.lineno(),
+                    filename: sym.filename().map(|x| x.into()),
+                });
             });
 
             true
@@ -434,14 +434,14 @@ impl<'a> PanicPrinter<'a> {
         // Try to find where the interesting part starts...
         let top_cutoff = frames
             .iter()
-            .rposition(|x| is_post_panic_code(&x.0))
+            .rposition(|x| x.is_post_panic_code())
             .map(|x| x + 1)
             .unwrap_or(0);
 
         // Try to find where language init frames start ...
         let bottom_cutoff = frames
             .iter()
-            .position(|x| is_runtime_init_code(&x.0))
+            .position(|x| x.is_runtime_init_code())
             .unwrap_or(frames.len());
 
         if top_cutoff != 0 {
@@ -452,29 +452,22 @@ impl<'a> PanicPrinter<'a> {
         }
 
         // Turn them into `Frame` objects and print them.
-        let num_symbols = frames.len();
-        let symbols = frames
+        let num_frames = frames.len();
+        let frames = frames
             .into_iter()
             .skip(top_cutoff)
             .take(bottom_cutoff - top_cutoff)
             .zip(top_cutoff..);
 
         // Print surviving frames.
-        for ((name, lineno, filename), i) in symbols {
-            let mut frame = Frame {
-                printer: self,
-                name,
-                lineno,
-                filename,
-            };
-
-            frame.print(i)?;
+        for (mut frame, i) in frames {
+            frame.print(i, self)?;
         }
 
-        if bottom_cutoff != num_symbols {
+        if bottom_cutoff != num_frames {
             let text = format!(
                 "({} runtime init frames hidden)",
-                num_symbols - bottom_cutoff
+                num_frames - bottom_cutoff
             );
             self.s.out.fg(color::BRIGHT_CYAN)?;
             writeln!(self.s.out, "{:^80}", text)?;
