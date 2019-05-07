@@ -281,10 +281,16 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
+        let term = term::stderr().unwrap();
+
         Self {
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
-            out: Box::new(ColorizedStderrOutput::new(term::stderr().unwrap())),
+            out: if atty::is(atty::Stream::Stderr) {
+                Box::new(ColorizedStderrOutput::new(term))
+            } else {
+                Box::new(StreamOutput::new(term))
+            },
         }
     }
 

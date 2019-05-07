@@ -19,3 +19,4 @@ keywords = [
 [dependencies]
 backtrace = "0.3"
 term = "0.5"
+atty = "0.2"
