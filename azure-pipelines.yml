@@ -1,11 +1,39 @@
+strategy:
+  matrix:
+    'Linux':
+      imageName: 'ubuntu-16.04'
+    'Mac':
+      imageName: 'macos-10.13'
+    'Windows':
+      imageName: 'vs2017-win2016'
+
 pool:
-  vmImage: 'Ubuntu-16.04'
+  vmImage: '$(imageName)'
 
 steps:
+
+### Install Rust.
+# Copy & pasta from tokio.
+
+# Linux and macOS.
 - script: |
-    sudo apt-get install gcc curl -y
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  displayName: 'Installing Rust'
+    set -e
+    curl https://sh.rustup.rs -sSf | sh -s -- -y
+    echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+  displayName: "Install rust (*nix)"
+  condition: not(eq(variables['Agent.OS'], 'Windows_NT'))
+
+# Windows.
 - script: |
-    ~/.cargo/bin/cargo build
+    curl -sSf -o rustup-init.exe https://win.rustup.rs
+    rustup-init.exe -y
+    set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+    echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
+  displayName: "Install rust (windows)"
+  condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+### Build color-backtrace.
+
+- script: |
+    cargo build
   displayName: 'Building color-backtrace'
