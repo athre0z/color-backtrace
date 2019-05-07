@@ -29,6 +29,7 @@
 //! to [full](Verbosity::Full) verbosity levels.
 
 use backtrace;
+use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::panic::PanicInfo;
@@ -119,7 +120,8 @@ impl Frame {
             "backtrace::backtrace::",
             "_rust_begin_unwind",
             "color_traceback::",
-            "__rust_maybe_catch_panic",
+            "__rust_",
+            "___rust_",
             "__pthread",
             "_main",
             "main",
@@ -272,15 +274,14 @@ impl Frame {
 // [Settings]                                                                                     //
 // ============================================================================================== //
 
-// #[derive(Debug, Clone)]
 pub struct Settings {
     message: String,
     out: Box<dyn PanicOutputStream>,
     verbosity: Verbosity,
 }
 
-impl Settings {
-    pub fn new() -> Self {
+impl Default for Settings {
+    fn default() -> Self {
         let term = term::stderr().unwrap();
 
         Self {
@@ -292,6 +293,21 @@ impl Settings {
                 Box::new(StreamOutput::new(term))
             },
         }
+    }
+}
+
+impl fmt::Debug for Settings {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Settings")
+            .field("message", &self.message)
+            .field("verbosity", &self.verbosity)
+            .finish()
+    }
+}
+
+impl Settings {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn message(mut self, message: impl Into<String>) -> Self {
