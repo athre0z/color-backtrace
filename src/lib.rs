@@ -83,7 +83,7 @@ pub fn create_panic_handler(
     let settings_mutex = Mutex::new(settings);
     Box::new(move |pi| {
         let mut settings_lock = settings_mutex.lock().unwrap();
-        PanicPrinter::new(pi, &mut *settings_lock).go().unwrap();
+        print_panic_info(pi, &mut *settings_lock).unwrap();
     })
 }
 
@@ -204,22 +204,21 @@ impl Frame {
         false
     }
 
-    fn print_source_if_avail(&self, printer: &mut PanicPrinter<'_>) -> IOResult {
+    fn print_source_if_avail(&self, s: &mut Settings) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
             _ => return Ok(()),
         };
 
-        printer.print_source_if_avail(filename, lineno)
+        print_source_if_avail(filename, lineno, s)
     }
 
-    fn print(&self, i: usize, printer: &mut PanicPrinter<'_>) -> IOResult {
+    fn print(&self, i: usize, s: &mut Settings) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
-        let t = &mut printer.s.out;
 
         // Print frame index.
-        write!(t, "{:>2}: ", i)?;
+        write!(s.out, "{:>2}: ", i)?;
 
         let name = self
             .name
@@ -234,21 +233,21 @@ impl Frame {
             && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
 
         // Print function name.
-        t.fg(if is_dependency_code {
+        s.out.fg(if is_dependency_code {
             color::GREEN
         } else {
             color::BRIGHT_RED
         })?;
 
         if has_hash_suffix {
-            write!(t, "{}", &name[..name.len() - 19])?;
-            t.fg(color::BRIGHT_BLACK)?;
-            writeln!(t, "{}", &name[name.len() - 19..])?;
+            write!(s.out, "{}", &name[..name.len() - 19])?;
+            s.out.fg(color::BRIGHT_BLACK)?;
+            writeln!(s.out, "{}", &name[name.len() - 19..])?;
         } else {
-            writeln!(t, "{}", name)?;
+            writeln!(s.out, "{}", name)?;
         }
 
-        t.reset()?;
+        s.out.reset()?;
 
         // Print source location, if known.
         if let Some(ref file) = self.filename {
@@ -256,14 +255,14 @@ impl Frame {
             let lineno = self
                 .lineno
                 .map_or("<unknown line>".to_owned(), |x| x.to_string());
-            writeln!(t, "    at {}:{}", filestr, lineno)?;
+            writeln!(s.out, "    at {}:{}", filestr, lineno)?;
         } else {
-            writeln!(t, "    at <unknown source file>")?;
+            writeln!(s.out, "    at <unknown source file>")?;
         }
 
         // Maybe print source.
-        if printer.s.verbosity >= Verbosity::Full {
-            self.print_source_if_avail(printer)?;
+        if s.verbosity >= Verbosity::Full {
+            self.print_source_if_avail(s)?;
         }
 
         Ok(())
@@ -368,11 +367,11 @@ impl Colorize for ColorizedStderrOutput {
 }
 
 impl Write for ColorizedStderrOutput {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+    fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
         self.term.get_mut().write(buf)
     }
 
-    fn flush(&mut self) -> Result<(), std::io::Error> {
+    fn flush(&mut self) -> IOResult {
         self.term.get_mut().flush()
     }
 }
@@ -396,11 +395,11 @@ impl<T: Write + Send> StreamOutput<T> {
 }
 
 impl<T: Write + Send> Write for StreamOutput<T> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+    fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
         self.stream.write(buf)
     }
 
-    fn flush(&mut self) -> Result<(), std::io::Error> {
+    fn flush(&mut self) -> IOResult {
         self.stream.flush()
     }
 }
@@ -422,174 +421,156 @@ impl<T: Write + Send> Colorize for StreamOutput<T> {
 impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 
 // ============================================================================================== //
-// [PanicPrinter]                                                                                 //
+// [Panic printing]                                                                               //
 // ============================================================================================== //
 
-struct PanicPrinter<'a> {
-    pi: &'a PanicInfo<'a>,
-    s: &'a mut Settings,
+fn print_source_if_avail(filename: &Path, lineno: u32, s: &mut Settings) -> IOResult {
+    let file = match File::open(filename) {
+        Ok(file) => file,
+        Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+        e @ Err(_) => e?,
+    };
+
+    // Extract relevant lines.
+    let reader = BufReader::new(file);
+    let start_line = lineno - 2.min(lineno - 1);
+    let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
+    for (line, cur_line_no) in surrounding_src.zip(start_line..) {
+        if cur_line_no == lineno {
+            // Print actual source line with brighter color.
+            s.out.fg(color::BRIGHT_WHITE)?;
+            writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
+            s.out.reset()?;
+        } else {
+            writeln!(s.out, "{:>8} │ {}", cur_line_no, line?)?;
+        }
+    }
+
+    Ok(())
 }
 
-impl<'a> PanicPrinter<'a> {
-    fn print_source_if_avail(&mut self, filename: &Path, lineno: u32) -> IOResult {
-        let file = match File::open(filename) {
-            Ok(file) => file,
-            Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-            e @ Err(_) => e?,
-        };
+pub fn print_backtrace(s: &mut Settings) -> IOResult {
+    writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
 
-        // Extract relevant lines.
-        let reader = BufReader::new(file);
-        let start_line = lineno - 2.min(lineno - 1);
-        let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
-        for (line, cur_line_no) in surrounding_src.zip(start_line..) {
-            if cur_line_no == lineno {
-                // Print actual source line with brighter color.
-                self.s.out.fg(color::BRIGHT_WHITE)?;
-                writeln!(self.s.out, "{:>8} > {}", cur_line_no, line?)?;
-                self.s.out.reset()?;
-            } else {
-                writeln!(self.s.out, "{:>8} │ {}", cur_line_no, line?)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn print_backtrace(&mut self) -> IOResult {
-        writeln!(self.s.out, "{:━^80}", " BACKTRACE ")?;
-
-        // Collect frame info.
-        let mut frames = Vec::new();
-        backtrace::trace(|x| {
-            // TODO: Don't just drop unresolvable frames.
-            backtrace::resolve(x.ip(), |sym| {
-                frames.push(Frame {
-                    name: sym.name().map(|x| x.to_string()),
-                    lineno: sym.lineno(),
-                    filename: sym.filename().map(|x| x.into()),
-                });
+    // Collect frame info.
+    let mut frames = Vec::new();
+    backtrace::trace(|x| {
+        // TODO: Don't just drop unresolvable frames.
+        backtrace::resolve(x.ip(), |sym| {
+            frames.push(Frame {
+                name: sym.name().map(|x| x.to_string()),
+                lineno: sym.lineno(),
+                filename: sym.filename().map(|x| x.into()),
             });
-
-            true
         });
 
-        // Try to find where the interesting part starts...
-        let top_cutoff = frames
-            .iter()
-            .rposition(|x| x.is_post_panic_code())
-            .map(|x| x + 1)
-            .unwrap_or(0);
+        true
+    });
 
-        // Try to find where language init frames start ...
-        let bottom_cutoff = frames
-            .iter()
-            .position(|x| x.is_runtime_init_code())
-            .unwrap_or(frames.len());
+    // Try to find where the interesting part starts...
+    let top_cutoff = frames
+        .iter()
+        .rposition(|x| x.is_post_panic_code())
+        .map(|x| x + 1)
+        .unwrap_or(0);
 
-        if top_cutoff != 0 {
-            let text = format!("({} post panic frames hidden)", top_cutoff);
-            self.s.out.fg(color::BRIGHT_CYAN)?;
-            writeln!(self.s.out, "{:^80}", text)?;
-            self.s.out.reset()?;
-        }
+    // Try to find where language init frames start ...
+    let bottom_cutoff = frames
+        .iter()
+        .position(|x| x.is_runtime_init_code())
+        .unwrap_or(frames.len());
 
-        // Turn them into `Frame` objects and print them.
-        let num_frames = frames.len();
-        let frames = frames
-            .into_iter()
-            .skip(top_cutoff)
-            .take(bottom_cutoff - top_cutoff)
-            .zip(top_cutoff..);
-
-        // Print surviving frames.
-        for (frame, i) in frames {
-            frame.print(i, self)?;
-        }
-
-        if bottom_cutoff != num_frames {
-            let text = format!(
-                "({} runtime init frames hidden)",
-                num_frames - bottom_cutoff
-            );
-            self.s.out.fg(color::BRIGHT_CYAN)?;
-            writeln!(self.s.out, "{:^80}", text)?;
-            self.s.out.reset()?;
-        }
-
-        Ok(())
+    if top_cutoff != 0 {
+        let text = format!("({} post panic frames hidden)", top_cutoff);
+        s.out.fg(color::BRIGHT_CYAN)?;
+        writeln!(s.out, "{:^80}", text)?;
+        s.out.reset()?;
     }
 
-    fn print_panic_info(&mut self) -> IOResult {
-        self.s.out.fg(color::RED)?;
-        writeln!(self.s.out, "{}", self.s.message)?;
-        self.s.out.reset()?;
+    // Turn them into `Frame` objects and print them.
+    let num_frames = frames.len();
+    let frames = frames
+        .into_iter()
+        .skip(top_cutoff)
+        .take(bottom_cutoff - top_cutoff)
+        .zip(top_cutoff..);
 
-        // Print panic message.
-        let payload = self
-            .pi
-            .payload()
-            .downcast_ref::<String>()
-            .map(String::as_str)
-            .or_else(|| self.pi.payload().downcast_ref::<&str>().map(|x| *x))
-            .unwrap_or("<non string panic payload>");
-
-        write!(self.s.out, "Message:  ")?;
-        self.s.out.fg(color::CYAN)?;
-        writeln!(self.s.out, "{}", payload)?;
-        self.s.out.reset()?;
-
-        // If known, print panic location.
-        write!(self.s.out, "Location: ")?;
-        if let Some(loc) = self.pi.location() {
-            self.s.out.fg(color::MAGENTA)?;
-            write!(self.s.out, "{}", loc.file())?;
-            self.s.out.fg(color::WHITE)?;
-            write!(self.s.out, ":")?;
-            self.s.out.fg(color::MAGENTA)?;
-            writeln!(self.s.out, "{}", loc.line())?;
-            self.s.out.reset()?;
-        } else {
-            writeln!(self.s.out, "<unknown>")?;
-        }
-
-        // Print some info on how to increase verbosity.
-        if self.s.verbosity == Verbosity::Minimal {
-            write!(self.s.out, "\nBacktrace omitted. Run with ")?;
-            self.s.out.fg(color::BRIGHT_WHITE)?;
-            write!(self.s.out, "RUST_BACKTRACE=1")?;
-            self.s.out.reset()?;
-            writeln!(self.s.out, " environment variable to display it.")?;
-        }
-        if self.s.verbosity <= Verbosity::Medium {
-            if self.s.verbosity == Verbosity::Medium {
-                // If exactly medium, no newline was printed before.
-                writeln!(self.s.out)?;
-            }
-
-            write!(self.s.out, "Run with ")?;
-            self.s.out.fg(color::BRIGHT_WHITE)?;
-            write!(self.s.out, "RUST_BACKTRACE=full")?;
-            self.s.out.reset()?;
-            writeln!(self.s.out, " to include source snippets.")?;
-        }
-
-        Ok(())
+    // Print surviving frames.
+    for (frame, i) in frames {
+        frame.print(i, s)?;
     }
 
-    fn go(mut self) -> IOResult {
-        self.print_panic_info()?;
+    if bottom_cutoff != num_frames {
+        let text = format!(
+            "({} runtime init frames hidden)",
+            num_frames - bottom_cutoff
+        );
+        s.out.fg(color::BRIGHT_CYAN)?;
+        writeln!(s.out, "{:^80}", text)?;
+        s.out.reset()?;
+    }
 
-        if self.s.verbosity >= Verbosity::Medium {
-            self.print_backtrace()?;
+    Ok(())
+}
+
+pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
+    s.out.fg(color::RED)?;
+    writeln!(s.out, "{}", s.message)?;
+    s.out.reset()?;
+
+    // Print panic message.
+    let payload = pi
+        .payload()
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| pi.payload().downcast_ref::<&str>().map(|x| *x))
+        .unwrap_or("<non string panic payload>");
+
+    write!(s.out, "Message:  ")?;
+    s.out.fg(color::CYAN)?;
+    writeln!(s.out, "{}", payload)?;
+    s.out.reset()?;
+
+    // If known, print panic location.
+    write!(s.out, "Location: ")?;
+    if let Some(loc) = pi.location() {
+        s.out.fg(color::MAGENTA)?;
+        write!(s.out, "{}", loc.file())?;
+        s.out.fg(color::WHITE)?;
+        write!(s.out, ":")?;
+        s.out.fg(color::MAGENTA)?;
+        writeln!(s.out, "{}", loc.line())?;
+        s.out.reset()?;
+    } else {
+        writeln!(s.out, "<unknown>")?;
+    }
+
+    // Print some info on how to increase verbosity.
+    if s.verbosity == Verbosity::Minimal {
+        write!(s.out, "\nBacktrace omitted. Run with ")?;
+        s.out.fg(color::BRIGHT_WHITE)?;
+        write!(s.out, "RUST_BACKTRACE=1")?;
+        s.out.reset()?;
+        writeln!(s.out, " environment variable to display it.")?;
+    }
+    if s.verbosity <= Verbosity::Medium {
+        if s.verbosity == Verbosity::Medium {
+            // If exactly medium, no newline was printed before.
+            writeln!(s.out)?;
         }
 
-        Ok(())
+        write!(s.out, "Run with ")?;
+        s.out.fg(color::BRIGHT_WHITE)?;
+        write!(s.out, "RUST_BACKTRACE=full")?;
+        s.out.reset()?;
+        writeln!(s.out, " to include source snippets.")?;
     }
 
-    fn new(pi: &'a PanicInfo, settings: &'a mut Settings) -> Self {
-        Self { pi, s: settings }
+    if s.verbosity >= Verbosity::Medium {
+        print_backtrace(s)?;
     }
+
+    Ok(())
 }
 
 // ============================================================================================== //
