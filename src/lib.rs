@@ -223,7 +223,7 @@ impl Frame {
         let name = self
             .name
             .as_ref()
-            .map(|x| x.as_str())
+            .map(String::as_str)
             .unwrap_or("<unknown>");
 
         // Does the function have a hash suffix?
@@ -273,6 +273,7 @@ impl Frame {
 // [Settings]                                                                                     //
 // ============================================================================================== //
 
+/// Configuration for panic printing.
 pub struct Settings {
     message: String,
     out: Box<dyn PanicOutputStream>,
@@ -305,6 +306,7 @@ impl fmt::Debug for Settings {
 }
 
 impl Settings {
+    /// Alias for `Settings::default`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -449,7 +451,7 @@ fn print_source_if_avail(filename: &Path, lineno: u32, s: &mut Settings) -> IORe
     Ok(())
 }
 
-pub fn print_backtrace(s: &mut Settings) -> IOResult {
+fn print_backtrace(s: &mut Settings) -> IOResult {
     writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
 
     // Collect frame info.
@@ -470,15 +472,15 @@ pub fn print_backtrace(s: &mut Settings) -> IOResult {
     // Try to find where the interesting part starts...
     let top_cutoff = frames
         .iter()
-        .rposition(|x| x.is_post_panic_code())
+        .rposition(Frame::is_post_panic_code)
         .map(|x| x + 1)
         .unwrap_or(0);
 
     // Try to find where language init frames start ...
     let bottom_cutoff = frames
         .iter()
-        .position(|x| x.is_runtime_init_code())
-        .unwrap_or(frames.len());
+        .position(Frame::is_runtime_init_code)
+        .unwrap_or_else(|| frames.len());
 
     if top_cutoff != 0 {
         let text = format!("({} post panic frames hidden)", top_cutoff);
@@ -513,7 +515,7 @@ pub fn print_backtrace(s: &mut Settings) -> IOResult {
     Ok(())
 }
 
-pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
+fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     s.out.fg(color::RED)?;
     writeln!(s.out, "{}", s.message)?;
     s.out.reset()?;
@@ -523,7 +525,7 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
         .payload()
         .downcast_ref::<String>()
         .map(String::as_str)
-        .or_else(|| pi.payload().downcast_ref::<&str>().map(|x| *x))
+        .or_else(|| pi.payload().downcast_ref::<&str>().cloned())
         .unwrap_or("<non string panic payload>");
 
     write!(s.out, "Message:  ")?;
