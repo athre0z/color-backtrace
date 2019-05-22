@@ -239,7 +239,7 @@ impl Frame {
             color::BRIGHT_RED
         })?;
 
-        if has_hash_suffix {
+        if has_hash_suffix && s.dim_function_hash_part {
             write!(s.out, "{}", &name[..name.len() - 19])?;
             s.out.fg(color::BRIGHT_BLACK)?;
             writeln!(s.out, "{}", &name[name.len() - 19..])?;
@@ -278,6 +278,7 @@ pub struct Settings {
     message: String,
     out: Box<dyn PanicOutputStream>,
     verbosity: Verbosity,
+    dim_function_hash_part: bool,
 }
 
 impl Default for Settings {
@@ -292,6 +293,7 @@ impl Default for Settings {
             } else {
                 Box::new(StreamOutput::new(term))
             },
+            dim_function_hash_part: true,
         }
     }
 }
@@ -301,6 +303,7 @@ impl fmt::Debug for Settings {
         fmt.debug_struct("Settings")
             .field("message", &self.message)
             .field("verbosity", &self.verbosity)
+            .field("dim_function_hash_part", &self.dim_function_hash_part)
             .finish()
     }
 }
@@ -311,32 +314,52 @@ impl Settings {
         Self::default()
     }
 
+    /// Controls the "greeting" message of the panic.
+    ///
+    /// Defaults to `"The application panicked (crashed)"`.
     pub fn message(mut self, message: impl Into<String>) -> Self {
         self.message = message.into();
         self
     }
 
+    /// Controls where output is directed to.
+    ///
+    /// Defaults to colorized output to `stderr` when attached to a tty
+    /// or colorless output when not.
     pub fn output_stream(mut self, out: Box<dyn PanicOutputStream>) -> Self {
         self.out = out;
         self
     }
 
+    /// Controls the verbosity level.
+    ///
+    /// Defaults to `Verbosity::get_env()`.
     pub fn verbosity(mut self, v: Verbosity) -> Self {
         self.verbosity = v;
+        self
+    }
+
+    /// Controls whether the hash part of functions is printed dimmed.
+    ///
+    /// Defaults to `true`.
+    pub fn dim_function_hash_part(mut self, dim: bool) -> Self {
+        self.dim_function_hash_part = dim;
         self
     }
 }
 
 // ============================================================================================== //
-// [Term output abtraction]                                                                       //
+// [Term output abstraction]                                                                      //
 // ============================================================================================== //
 
+/// Colorization subset of `term::Terminal` trait.
 pub trait Colorize {
     fn fg(&mut self, color: color::Color) -> IOResult;
     fn bg(&mut self, color: color::Color) -> IOResult;
     fn reset(&mut self) -> IOResult;
 }
 
+/// Combined `Colorize + Write + Send` trait, for usage with `Box`.
 pub trait PanicOutputStream: Colorize + Write + Send {}
 
 // ---------------------------------------------------------------------------------------------- //
