@@ -487,19 +487,16 @@ fn print_backtrace(s: &mut Settings) -> IOResult {
     writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
 
     // Collect frame info.
-    let mut frames = Vec::new();
-    backtrace::trace(|x| {
-        // TODO: Don't just drop unresolvable frames.
-        backtrace::resolve(x.ip(), |sym| {
-            frames.push(Frame {
-                name: sym.name().map(|x| x.to_string()),
-                lineno: sym.lineno(),
-                filename: sym.filename().map(|x| x.into()),
-            });
-        });
-
-        true
-    });
+    let frames: Vec<_> = backtrace::Backtrace::new()
+        .frames()
+        .iter()
+        .flat_map(|frame| frame.symbols())
+        .map(|sym| Frame {
+            name: sym.name().map(|x| x.to_string()),
+            lineno: sym.lineno(),
+            filename: sym.filename().map(|x| x.into()),
+        })
+        .collect();
 
     // Try to find where the interesting part starts...
     let top_cutoff = frames
