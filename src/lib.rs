@@ -35,7 +35,7 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::panic::PanicInfo;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use term::{self, color, StderrTerminal};
+use term::{self, color, Attr, StderrTerminal};
 
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
@@ -356,6 +356,7 @@ impl Settings {
 pub trait Colorize {
     fn fg(&mut self, color: color::Color) -> IOResult;
     fn bg(&mut self, color: color::Color) -> IOResult;
+    fn attr(&mut self, attr: Attr) -> IOResult;
     fn reset(&mut self) -> IOResult;
 }
 
@@ -384,6 +385,10 @@ impl Colorize for ColorizedStderrOutput {
 
     fn bg(&mut self, color: color::Color) -> IOResult {
         Ok(self.term.bg(color)?)
+    }
+
+    fn attr(&mut self, attr: Attr) -> IOResult {
+        Ok(self.term.attr(attr)?)
     }
 
     fn reset(&mut self) -> IOResult {
@@ -438,6 +443,10 @@ impl<T: Write + Send> Colorize for StreamOutput<T> {
         Ok(())
     }
 
+    fn attr(&mut self, _attr: Attr) -> IOResult {
+        Ok(())
+    }
+
     fn reset(&mut self) -> IOResult {
         Ok(())
     }
@@ -463,7 +472,7 @@ fn print_source_if_avail(filename: &Path, lineno: u32, s: &mut Settings) -> IORe
     for (line, cur_line_no) in surrounding_src.zip(start_line..) {
         if cur_line_no == lineno {
             // Print actual source line with brighter color.
-            s.out.fg(color::BRIGHT_WHITE)?;
+            s.out.attr(Attr::Bold)?;
             writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
             s.out.reset()?;
         } else {
@@ -573,7 +582,7 @@ fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     // Print some info on how to increase verbosity.
     if s.verbosity == Verbosity::Minimal {
         write!(s.out, "\nBacktrace omitted. Run with ")?;
-        s.out.fg(color::BRIGHT_WHITE)?;
+        s.out.attr(Attr::Bold)?;
         write!(s.out, "RUST_BACKTRACE=1")?;
         s.out.reset()?;
         writeln!(s.out, " environment variable to display it.")?;
@@ -585,7 +594,7 @@ fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
         }
 
         write!(s.out, "Run with ")?;
-        s.out.fg(color::BRIGHT_WHITE)?;
+        s.out.attr(Attr::Bold)?;
         write!(s.out, "RUST_BACKTRACE=full")?;
         s.out.reset()?;
         writeln!(s.out, " to include source snippets.")?;
