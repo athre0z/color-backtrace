@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [v0.2.0] (2019-06-22)
 
 ### Added
 - This changelog!
@@ -16,3 +16,5 @@ All notable changes to this project will be documented in this file.
 - Fix readability on light terminal themes
 - Fix deadlock when unwrapping an error while printing the panic
 - Many internal tweaks
+
+[v0.2.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.0
