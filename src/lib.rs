@@ -33,7 +33,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::panic::PanicInfo;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use term::{self, color, Attr, StderrTerminal};
 
@@ -215,7 +215,28 @@ impl Frame {
             _ => return Ok(()),
         };
 
-        print_source_if_avail(filename, lineno, s)
+        let file = match File::open(filename) {
+            Ok(file) => file,
+            Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            e @ Err(_) => e?,
+        };
+
+        // Extract relevant lines.
+        let reader = BufReader::new(file);
+        let start_line = lineno - 2.min(lineno - 1);
+        let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
+        for (line, cur_line_no) in surrounding_src.zip(start_line..) {
+            if cur_line_no == lineno {
+                // Print actual source line with brighter color.
+                s.out.attr(Attr::Bold)?;
+                writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
+                s.out.reset()?;
+            } else {
+                writeln!(s.out, "{:>8} │ {}", cur_line_no, line?)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn print(&self, i: usize, s: &mut Settings) -> IOResult {
@@ -461,31 +482,6 @@ impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 // ============================================================================================== //
 // [Panic printing]                                                                               //
 // ============================================================================================== //
-
-fn print_source_if_avail(filename: &Path, lineno: u32, s: &mut Settings) -> IOResult {
-    let file = match File::open(filename) {
-        Ok(file) => file,
-        Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-        e @ Err(_) => e?,
-    };
-
-    // Extract relevant lines.
-    let reader = BufReader::new(file);
-    let start_line = lineno - 2.min(lineno - 1);
-    let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
-    for (line, cur_line_no) in surrounding_src.zip(start_line..) {
-        if cur_line_no == lineno {
-            // Print actual source line with brighter color.
-            s.out.attr(Attr::Bold)?;
-            writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
-            s.out.reset()?;
-        } else {
-            writeln!(s.out, "{:>8} │ {}", cur_line_no, line?)?;
-        }
-    }
-
-    Ok(())
-}
 
 fn print_backtrace(s: &mut Settings) -> IOResult {
     writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
