@@ -83,7 +83,11 @@ pub fn create_panic_handler(
     let settings_mutex = Mutex::new(settings);
     Box::new(move |pi| {
         let mut settings_lock = settings_mutex.lock().unwrap();
-        print_panic_info(pi, &mut *settings_lock).unwrap();
+        if let Err(e) = print_panic_info(pi, &mut *settings_lock) {
+            // Panicing while handling a panic would send us into a deadlock,
+            // so we just print the error to stderr instead.
+            eprintln!("Error while printing panic: {:?}", e);
+        }
     })
 }
 
