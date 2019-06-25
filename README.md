@@ -5,7 +5,6 @@ color-backtrace
 [![docs.rs][docs-badge]][docs-url]
 [![MIT licensed][mit-badge]][mit-url]
 
-
 [crates-badge]: https://img.shields.io/crates/v/color-backtrace.svg
 [crates-url]: https://crates.io/crates/color-backtrace
 [docs-badge]: https://docs.rs/color-backtrace/badge.svg
@@ -37,6 +36,7 @@ install_with_settings(Settings::new().message("Custom message!"));
 - Show source snippets if source files are found on disk
 - Print frames of application code vs dependencies in different color
 - Hide all the frames after the panic was already initiated
+- Hide language runtime initialization frames
 
 ### Screenshot
-![Screenshot](https://i.imgur.com/bMnNdAj.png)
+![Screenshot](https://i.imgur.com/jLznHxp.png)

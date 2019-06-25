@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.2.1] (2019-06-25)
+
+### Changed
+- Fixed panic then `TERM` env var is not found
+
 ## [v0.2.0] (2019-06-22)
 
 ### Added
@@ -18,3 +23,4 @@ All notable changes to this project will be documented in this file.
 - Many internal tweaks
 
 [v0.2.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.0
+[v0.2.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.1
