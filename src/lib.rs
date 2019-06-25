@@ -308,15 +308,15 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let term = term::stderr().unwrap();
+        let term = term::stderr();
 
         Self {
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
-            out: if atty::is(atty::Stream::Stderr) {
-                Box::new(ColorizedStderrOutput::new(term))
+            out: if term.is_some() && atty::is(atty::Stream::Stderr) {
+                Box::new(ColorizedStderrOutput::new(term.unwrap()))
             } else {
-                Box::new(StreamOutput::new(term))
+                Box::new(StreamOutput::new(std::io::stderr()))
             },
             dim_function_hash_part: true,
         }
