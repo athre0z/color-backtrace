@@ -11,13 +11,13 @@ struct MaybeResolved {
     backtrace: std::cell::UnsafeCell<backtrace::Backtrace>,
 }
 
-pub fn copy_internal_backtrace(_opaque: &failure::Backtrace) -> Option<backtrace::Backtrace> {
+pub fn backdoortrace(_opaque: &failure::Backtrace) -> Option<&backtrace::Backtrace> {
     let _ = format!("{}", _opaque); // forces resolution
     let no_longer_opaque: &FakeBacktrace =
         unsafe { &*(_opaque as *const failure::Backtrace as *const FakeBacktrace) };
     if let Some(bt) = &no_longer_opaque.internal.backtrace {
         let bt = unsafe { &*bt.backtrace.get() };
-        return Some(bt.clone());
+        return Some(bt);
     }
 
     None
@@ -27,7 +27,7 @@ pub fn print_failure_backtrace(
     trace: &failure::Backtrace,
     settings: &mut crate::Settings,
 ) -> crate::IOResult {
-    let internal = copy_internal_backtrace(trace);
+    let internal = backdoortrace(trace);
 
     if let Some(internal) = internal {
         super::print_backtrace(internal, settings)
