@@ -35,5 +35,11 @@ steps:
 ### Build color-backtrace.
 
 - script: |
-    cargo build
+    cargo build --features=failure-bt
   displayName: 'Building color-backtrace'
+
+### Test color-backtrace
+
+- script: |
+    cargo test --features=failure-bt
+  displayName: 'Testing color-backtrace'
