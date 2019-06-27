@@ -22,7 +22,7 @@ term = "0.5"
 atty = "0.2"
 
 [features]
-backdoortrace = ["failure"]
+failure-bt = ["failure"]
 
 [dependencies.failure]
 optional = true

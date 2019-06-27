@@ -23,7 +23,7 @@ pub fn copy_internal_backtrace(_opaque: &failure::Backtrace) -> Option<backtrace
     None
 }
 
-pub fn print_backdoortrace(
+pub fn print_failure_backtrace(
     trace: &failure::Backtrace,
     settings: &mut crate::Settings,
 ) -> crate::IOResult {
@@ -44,6 +44,6 @@ mod tests {
     fn it_works() {
         let e = failure::format_err!("arbitrary error :)");
         let mut settings = crate::Settings::default();
-        print_backdoortrace(e.backtrace(), &mut settings).unwrap();
+        print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
     }
 }
