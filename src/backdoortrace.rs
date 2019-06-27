@@ -32,7 +32,7 @@ pub fn print_failure_backtrace(
     if let Some(internal) = internal {
         super::print_backtrace(internal, settings)
     } else {
-        unimplemented!()
+        writeln!(settings.out, "<failure backtrace not captured>")
     }
 }
 
@@ -41,7 +41,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn with_envvar() {
+        std::env::set_var("RUST_BACKTRACE", "full");
+
+        let e = failure::format_err!("arbitrary error :)");
+        let mut settings = crate::Settings::default();
+        print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+    }
+
+    #[ignore]
+    #[test]
+    fn without_envvar() {
+        if std::env::var("RUST_BACKTRACE").is_ok() {
+            std::env::remove_var("RUST_BACKTRACE");
+        }
+
         let e = failure::format_err!("arbitrary error :)");
         let mut settings = crate::Settings::default();
         print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
