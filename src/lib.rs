@@ -7,13 +7,14 @@
 //! dependencies (green).
 //!
 //! ### Screenshot
-//! ![Screenshot](https://i.imgur.com/bMnNdAj.png)
+//! ![Screenshot](https://i.imgur.com/jLznHxp.png)
 //!
 //! ### Features
 //! - Colorize backtraces to be easier on the eyes
 //! - Show source snippets if source files are found on disk
 //! - Print frames of application code vs dependencies in different color
 //! - Hide all the frames after the panic was already initiated
+//! - Hide language runtime initialization frames
 //!
 //! ### Installing the panic handler
 //!
@@ -22,11 +23,18 @@
 //! color_backtrace::install();
 //! ```
 //!
+//! If you want to customize some settings, you can instead do:
+//! ```rust
+//! use color_backtrace::{install_with_settings, Settings};
+//! install_with_settings(Settings::new().message("Custom message!"));
+//! ```
+//!
 //! ### Controlling verbosity
-//! The verbosity is configured via the `RUST_BACKTRACE` environment variable.
-//! An unset `RUST_BACKTRACE` corresponds to [minimal](Verbosity::Minimal),
-//! `RUST_BACKTRACE=1` to [medium](Verbosity::Medium) and `RUST_BACKTRACE=full`
-//! to [full](Verbosity::Full) verbosity levels.
+//! The default verbosity is configured via the `RUST_BACKTRACE` environment
+//! variable. An unset `RUST_BACKTRACE` corresponds to
+//! [minimal](Verbosity::Minimal), `RUST_BACKTRACE=1` to
+//! [medium](Verbosity::Medium) and `RUST_BACKTRACE=full` to
+//! [full](Verbosity::Full) verbosity levels.
 
 use backtrace;
 use std::fmt;
@@ -163,12 +171,12 @@ impl Frame {
         false
     }
 
-    // Heuristically determine whether a frame is likely to be a post panic
-    // frame.
-    //
-    // Post panic frames are frames of a functions called after the actual panic
-    // is already in progress and don't contain any useful information for a
-    // reader of the backtrace.
+    /// Heuristically determine whether a frame is likely to be a post panic
+    /// frame.
+    ///
+    /// Post panic frames are frames of a functions called after the actual panic
+    /// is already in progress and don't contain any useful information for a
+    /// reader of the backtrace.
     fn is_post_panic_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "_rust_begin_unwind",
@@ -185,8 +193,8 @@ impl Frame {
         }
     }
 
-    // Heuristically determine whether a frame is likely to be part of language
-    // runtime.
+    /// Heuristically determine whether a frame is likely to be part of language
+    /// runtime.
     fn is_runtime_init_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] =
             &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
