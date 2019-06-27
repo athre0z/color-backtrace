@@ -16,14 +16,19 @@ keywords = [
     "pretty",
 ]
 
-[dependencies]
-backtrace = "0.3"
-term = "0.5"
-atty = "0.2"
-
 [features]
 failure-bt = ["failure"]
 
-[dependencies.failure]
-optional = true
-version = "0.1.5"
+[dependencies]
+term = "0.5"
+atty = "0.2"
+failure = { version = "0.1", optional = true }
+
+[target.'cfg(target_os="linux")'.dependencies]
+backtrace = { version = "0.3", features = ["gimli-symbolize"] }
+
+[target.'cfg(target_os="macos")'.dependencies]
+backtrace = { version = "0.3", features = ["coresymbolication"] }
+
+[target.'cfg(not(any(target_os="macos", target_os="linux")))'.dependencies]
+backtrace = { version = "0.3" }
