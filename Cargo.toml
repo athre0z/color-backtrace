@@ -20,3 +20,10 @@ keywords = [
 backtrace = "0.3"
 term = "0.5"
 atty = "0.2"
+
+[features]
+backdoortrace = ["failure"]
+
+[dependencies.failure]
+optional = true
+version = "0.1.5"
