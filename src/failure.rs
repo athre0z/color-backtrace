@@ -1,3 +1,5 @@
+//! Temporary hack to allow printing of `failure::Backtrace` objects.
+
 struct FakeBacktrace {
     internal: FakeInternalBacktrace,
 }
@@ -11,19 +13,29 @@ struct MaybeResolved {
     backtrace: std::cell::UnsafeCell<backtrace::Backtrace>,
 }
 
-pub fn backdoortrace(_opaque: &failure::Backtrace) -> Option<&backtrace::Backtrace> {
+/// Unsafely extract a reference to the internal `backtrace::Backtrace` from a
+/// `failure::Backtrace`.
+///
+/// # Unsafe Usage
+///
+/// Casts a `failure::Backtrace` to an internal reimplementation of it's struct layout as of
+/// failure `0.1.5` and then accesses its UnsafeCell to get a reference to its internal
+/// Backtrace.
+pub unsafe fn backdoortrace(_opaque: &failure::Backtrace) -> Option<&backtrace::Backtrace> {
     let _ = format!("{}", _opaque); // forces resolution
     let no_longer_opaque: &FakeBacktrace =
-        unsafe { &*(_opaque as *const failure::Backtrace as *const FakeBacktrace) };
+        { &*(_opaque as *const failure::Backtrace as *const FakeBacktrace) }; // unsafe
     if let Some(bt) = &no_longer_opaque.internal.backtrace {
-        let bt = unsafe { &*bt.backtrace.get() };
+        let bt = { &*bt.backtrace.get() }; // unsafe
         return Some(bt);
     }
 
     None
 }
 
-pub fn print_failure_backtrace(
+/// Extracts the internal `backtrace::Backtrace` from a `failure::Backtrace` and prints it, if one
+/// exists. Prints that a backtrace was not capture if one is not found.
+pub unsafe fn print_failure_backtrace(
     trace: &failure::Backtrace,
     settings: &mut crate::Settings,
 ) -> crate::IOResult {
@@ -46,7 +58,9 @@ mod tests {
 
         let e = failure::format_err!("arbitrary error :)");
         let mut settings = crate::Settings::default();
-        print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+        unsafe {
+            print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+        }
     }
 
     #[ignore]
@@ -58,6 +72,8 @@ mod tests {
 
         let e = failure::format_err!("arbitrary error :)");
         let mut settings = crate::Settings::default();
-        print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+        unsafe {
+            print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+        }
     }
 }

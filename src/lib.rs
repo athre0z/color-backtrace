@@ -46,9 +46,7 @@ use std::sync::Mutex;
 use term::{self, color, Attr, StderrTerminal};
 
 #[cfg(feature = "failure-bt")]
-mod backdoortrace;
-#[cfg(feature = "failure-bt")]
-pub use backdoortrace::print_failure_backtrace;
+pub mod failure;
 
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
