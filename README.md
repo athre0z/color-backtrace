@@ -38,5 +38,26 @@ install_with_settings(Settings::new().message("Custom message!"));
 - Hide all the frames after the panic was already initiated
 - Hide language runtime initialization frames
 
+### Optional Features
+
+- **`failure-bt`** — Experimental support for printing `failure::Backtrace` backtraces.
+
+### **Experimental** Failure backtrace integration
+
+`failure` backtraces are opaque and so this feature uses unsafe code to
+transmute the struct into a non private struct to allow access to the internal
+`backtrace::Backtrace` object.
+
+The code is dependent on and only tested against failure version `0.1.5` and is
+considered a temporary hack while we work on getting backtraces from errors
+exposed properly. User discretion is advised.
+
+To enable, include the following in your Cargo.toml
+
+```toml
+[dependencies]
+color-backtrace = { version = "0.2", features = ["failure-bt"] }
+```
+
 ### Screenshot
 ![Screenshot](https://i.imgur.com/jLznHxp.png)
