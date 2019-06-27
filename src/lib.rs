@@ -45,6 +45,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use term::{self, color, Attr, StderrTerminal};
 
+#[cfg(feature = "backdoortrace")]
+mod backdoortrace;
+#[cfg(feature = "backdoortrace")]
+pub use backdoortrace::print_backdoortrace;
+
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
 // ============================================================================================== //
