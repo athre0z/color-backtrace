@@ -498,7 +498,7 @@ impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 
 /// Pretty-prints a [`backtrace::Backtrace`](backtrace::Backtrace) according the
 /// the given settings.
-pub fn print_backtrace(trace: backtrace::Backtrace, settings: &mut Settings) -> IOResult {
+pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) -> IOResult {
     let s = settings;
     writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
 
@@ -616,7 +616,7 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     }
 
     if s.verbosity >= Verbosity::Medium {
-        print_backtrace(backtrace::Backtrace::new(), s)?;
+        print_backtrace(&backtrace::Backtrace::new(), s)?;
     }
 
     Ok(())
