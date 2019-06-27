@@ -491,11 +491,14 @@ impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 // [Panic printing]                                                                               //
 // ============================================================================================== //
 
-fn print_backtrace(s: &mut Settings) -> IOResult {
+/// Pretty-prints a [`backtrace::Backtrace`](backtrace::Backtrace) according the
+/// the given settings.
+pub fn print_backtrace(trace: backtrace::Backtrace, settings: &mut Settings) -> IOResult {
+    let s = settings;
     writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
 
     // Collect frame info.
-    let frames: Vec<_> = backtrace::Backtrace::new()
+    let frames: Vec<_> = trace
         .frames()
         .iter()
         .flat_map(|frame| frame.symbols())
@@ -552,7 +555,9 @@ fn print_backtrace(s: &mut Settings) -> IOResult {
     Ok(())
 }
 
-fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
+/// Pretty-prints a [`PanicInfo`](PanicInfo) struct according to the given
+/// settings.
+pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     s.out.fg(color::RED)?;
     writeln!(s.out, "{}", s.message)?;
     s.out.reset()?;
@@ -606,7 +611,7 @@ fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     }
 
     if s.verbosity >= Verbosity::Medium {
-        print_backtrace(s)?;
+        print_backtrace(backtrace::Backtrace::new(), s)?;
     }
 
     Ok(())
