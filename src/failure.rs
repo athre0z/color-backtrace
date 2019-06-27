@@ -35,7 +35,7 @@ pub unsafe fn backdoortrace(_opaque: &failure::Backtrace) -> Option<&backtrace::
 
 /// Extracts the internal `backtrace::Backtrace` from a `failure::Backtrace` and prints it, if one
 /// exists. Prints that a backtrace was not capture if one is not found.
-pub unsafe fn print_failure_backtrace(
+pub unsafe fn print_backtrace(
     trace: &failure::Backtrace,
     settings: &mut crate::Settings,
 ) -> crate::IOResult {
@@ -59,7 +59,7 @@ mod tests {
         let e = failure::format_err!("arbitrary error :)");
         let mut settings = crate::Settings::default();
         unsafe {
-            print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+            print_backtrace(e.backtrace(), &mut settings).unwrap();
         }
     }
 
@@ -73,7 +73,7 @@ mod tests {
         let e = failure::format_err!("arbitrary error :)");
         let mut settings = crate::Settings::default();
         unsafe {
-            print_failure_backtrace(e.backtrace(), &mut settings).unwrap();
+            print_backtrace(e.backtrace(), &mut settings).unwrap();
         }
     }
 }

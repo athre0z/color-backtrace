@@ -50,7 +50,9 @@ transmute the struct into a non private struct to allow access to the internal
 
 The code is dependent on and only tested against failure version `0.1.5` and is
 considered a temporary hack while we work on getting backtraces from errors
-exposed properly. User discretion is advised.
+exposed properly. This feature is marked as unsafe, it relies on UB to work,
+and there is no guarantee that rust will pick this layout on a different crate
+type. User discretion is advised.
 
 To enable, include the following in your Cargo.toml
 
