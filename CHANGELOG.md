@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+- Added post panic frame rules for [failure]
+
 ## [v0.2.2] (2019-06-30)
 
 ### Added

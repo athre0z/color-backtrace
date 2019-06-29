@@ -188,6 +188,10 @@ impl Frame {
             "color_backtrace::create_panic_handler",
             "std::panicking::begin_panic",
             "begin_panic_fmt",
+            "failure::backtrace::Backtrace::new",
+            "backtrace::capture",
+            "failure::error_message::err_msg",
+            "<failure::error::Error as core::convert::From<F>>::from",
         ];
 
         match self.name.as_ref() {
