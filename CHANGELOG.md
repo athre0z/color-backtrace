@@ -1,6 +1,17 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.2.2] (2019-06-30)
+
+### Added
+- Experimental support for [failure] error backtraces
+    - Contributed by Jane Lusby (@yaahallo)
+
+### Changed
+- Switch to [gimli] backend for backtraces on macOS and Linux
+    - Fixes backtraces when invoking an app outside of its build directory
+- Expose `print_backtrace` and `print_panic_info` functions
+
 ## [v0.2.1] (2019-06-25)
 
 ### Changed
@@ -22,5 +33,9 @@ All notable changes to this project will be documented in this file.
 - Fix deadlock when unwrapping an error while printing the panic
 - Many internal tweaks
 
+[failure]: https://github.com/rust-lang-nursery/failure
+[gimli]: https://github.com/gimli-rs/gimli
+
 [v0.2.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.0
 [v0.2.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.1
+[v0.2.2]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.2
