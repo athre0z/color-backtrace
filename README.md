@@ -61,5 +61,29 @@ To enable, include the following in your Cargo.toml
 color-backtrace = { version = "0.2", features = ["failure-bt"] }
 ```
 
+### Usage in tests
+
+Unfortunately, defining custom init functions run before tests are started is
+currently [not supported in Rust](https://github.com/rust-lang/rfcs/issues/1664).
+Since initializing color-backtrace in each and every test is tedious even when
+wrapping it into a function, I recommended using the
+[ctor](https://crates.io/crates/ctor) crate for this.
+
+Somewhere, preferably in your crate's main module, put the following code:
+```rust
+#[cfg(test)]
+mod tests {
+    use ctor::ctor;
+
+    #[ctor]
+    fn init_color_backtrace() {
+        color_backtrace::install();
+    }
+}
+```
+
+You can also do this outside of a `#[cfg(test)]` section, in which case the
+panic handler is installed for both test and regular runs.
+
 ### Screenshot
 ![Screenshot](https://i.imgur.com/jLznHxp.png)
