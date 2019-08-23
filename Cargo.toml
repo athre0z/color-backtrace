@@ -16,6 +16,10 @@ keywords = [
     "pretty",
 ]
 
+[[example]]
+name = "failure"
+required-features = ["failure"]
+
 [features]
 failure-bt = ["failure"]
 
