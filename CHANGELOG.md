@@ -1,10 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [v0.2.3] (2019-08-23)
 
 ### Changed
 - Added post panic frame rules for [failure]
+- Updated `term` dependency
 
 ## [v0.2.2] (2019-06-30)
 
