@@ -284,6 +284,11 @@ impl Frame {
             if s.strip_function_hash_part {
                 writeln!(s.out)?;
             } else {
+                s.out.set_color(if is_dependency_code {
+                    &s.colors.dependency_code_hash
+                } else {
+                    &s.colors.crate_code_hash
+                })?;
                 writeln!(s.out, "{}", &name[name.len() - 19..])?;
             }
         } else {
@@ -325,7 +330,9 @@ pub struct ColorScheme {
     pub src_loc_separator: ColorSpec,
     pub env_var: ColorSpec,
     pub dependency_code: ColorSpec,
+    pub dependency_code_hash: ColorSpec,
     pub crate_code: ColorSpec,
+    pub crate_code_hash: ColorSpec,
     pub selected_src_ln: ColorSpec,
 }
 
@@ -349,7 +356,9 @@ impl ColorScheme {
             src_loc_separator: Self::cs(Some(Color::White), false, false),
             env_var: Self::cs(None, false, true),
             dependency_code: Self::cs(Some(Color::Green), false, false),
+            dependency_code_hash: Self::cs(Some(Color::Black), true, false),
             crate_code: Self::cs(Some(Color::Red), true, false),
+            crate_code_hash: Self::cs(Some(Color::Black), true, false),
             selected_src_ln: Self::cs(None, false, true),
         }
     }
@@ -378,7 +387,7 @@ impl Default for Settings {
             message: "The application panicked (crashed).".to_owned(),
             // TODO: should we use `Always` here?
             out: Box::new(StandardStream::stderr(ColorChoice::Auto)),
-            strip_function_hash_part: true,
+            strip_function_hash_part: false,
         }
     }
 }
@@ -437,9 +446,9 @@ impl Settings {
 
     /// Controls whether the hash part of functions is printed stripped.
     ///
-    /// Defaults to `true`.
-    pub fn strip_function_hash_part(mut self, dim: bool) -> Self {
-        self.strip_function_hash_part = dim;
+    /// Defaults to `false`.
+    pub fn strip_function_hash_part(mut self, strip: bool) -> Self {
+        self.strip_function_hash_part = strip;
         self
     }
 }
