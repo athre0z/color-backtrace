@@ -335,26 +335,26 @@ pub struct Settings {
     strip_function_hash_part: bool,
 }
 
-fn mkcs(fg: Option<Color>, bg: Option<Color>, bold: bool) -> ColorSpec {
-    let mut cs = ColorSpec::new();
-    cs.set_fg(fg);
-    cs.set_bg(bg);
-    cs.set_bold(bold);
-    cs
-}
-
 impl Default for Settings {
     fn default() -> Self {
+        fn cs(fg: Option<Color>, intense: bool, bold: bool) -> ColorSpec {
+            let mut cs = ColorSpec::new();
+            cs.set_fg(fg);
+            cs.set_bold(bold);
+            cs.set_intense(intense);
+            cs
+        }
+
         Self {
-            frames_omitted_clr: ColorSpec::new(),
-            header_clr: ColorSpec::new(),
-            msg_loc_prefix_clr: ColorSpec::new(),
-            loc_clr: ColorSpec::new(),
-            loc_separator_clr: ColorSpec::new(),
-            env_var_clr: ColorSpec::new(),
-            dependency_clr: ColorSpec::new(),
-            crate_code_clr: ColorSpec::new(),
-            selected_src_ln_clr: ColorSpec::new(),
+            frames_omitted_clr: cs(Some(Color::Cyan), true, false),
+            header_clr: cs(Some(Color::Red), false, false),
+            msg_loc_prefix_clr: cs(Some(Color::Cyan), false, false),
+            loc_clr: cs(Some(Color::Magenta), false, false),
+            loc_separator_clr: cs(Some(Color::White), false, false),
+            env_var_clr: cs(None, false, true),
+            dependency_clr: cs(Some(Color::Green), false, false),
+            crate_code_clr: cs(Some(Color::Red), true, false),
+            selected_src_ln_clr: cs(None, false, true),
 
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
