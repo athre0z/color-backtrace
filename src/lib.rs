@@ -243,7 +243,7 @@ impl Frame {
         for (line, cur_line_no) in surrounding_src.zip(start_line..) {
             if cur_line_no == lineno {
                 // Print actual source line with brighter color.
-                s.out.set_color(&s.selected_src_ln_clr)?;
+                s.out.set_color(&s.colors.selected_src_ln)?;
                 writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
                 s.out.reset()?;
             } else {
@@ -274,9 +274,9 @@ impl Frame {
 
         // Print function name.
         s.out.set_color(if is_dependency_code {
-            &s.dependency_clr
+            &s.colors.dependency_code
         } else {
-            &s.crate_code_clr
+            &s.colors.crate_code
         })?;
 
         if has_hash_suffix {
@@ -316,19 +316,54 @@ impl Frame {
 // [Settings]                                                                                     //
 // ============================================================================================== //
 
+/// Color scheme definition.
+pub struct ColorScheme {
+    pub frames_omitted_msg: ColorSpec,
+    pub header: ColorSpec,
+    pub msg_loc_prefix: ColorSpec,
+    pub src_loc: ColorSpec,
+    pub src_loc_separator: ColorSpec,
+    pub env_var: ColorSpec,
+    pub dependency_code: ColorSpec,
+    pub crate_code: ColorSpec,
+    pub selected_src_ln: ColorSpec,
+}
+
+impl ColorScheme {
+    /// Helper to create a new `ColorSpec` & set a few properties in one wash.
+    fn cs(fg: Option<Color>, intense: bool, bold: bool) -> ColorSpec {
+        let mut cs = ColorSpec::new();
+        cs.set_fg(fg);
+        cs.set_bold(bold);
+        cs.set_intense(intense);
+        cs
+    }
+
+    /// The classic `color-backtrace` scheme, as shown in the screenshots.
+    pub fn classic() -> Self {
+        Self {
+            frames_omitted_msg: Self::cs(Some(Color::Cyan), true, false),
+            header: Self::cs(Some(Color::Red), false, false),
+            msg_loc_prefix: Self::cs(Some(Color::Cyan), false, false),
+            src_loc: Self::cs(Some(Color::Magenta), false, false),
+            src_loc_separator: Self::cs(Some(Color::White), false, false),
+            env_var: Self::cs(None, false, true),
+            dependency_code: Self::cs(Some(Color::Green), false, false),
+            crate_code: Self::cs(Some(Color::Red), true, false),
+            selected_src_ln: Self::cs(None, false, true),
+        }
+    }
+}
+
+impl Default for ColorScheme {
+    fn default() -> Self {
+        Self::classic()
+    }
+}
+
 /// Configuration for panic printing.
 pub struct Settings {
-    // TODO: better names
-    frames_omitted_clr: ColorSpec,
-    header_clr: ColorSpec,
-    msg_loc_prefix_clr: ColorSpec,
-    loc_clr: ColorSpec,
-    loc_separator_clr: ColorSpec,
-    env_var_clr: ColorSpec,
-    dependency_clr: ColorSpec,
-    crate_code_clr: ColorSpec,
-    selected_src_ln_clr: ColorSpec,
-
+    colors: ColorScheme,
     message: String,
     out: Box<dyn WriteColor + Send>,
     verbosity: Verbosity,
@@ -337,25 +372,8 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        fn cs(fg: Option<Color>, intense: bool, bold: bool) -> ColorSpec {
-            let mut cs = ColorSpec::new();
-            cs.set_fg(fg);
-            cs.set_bold(bold);
-            cs.set_intense(intense);
-            cs
-        }
-
         Self {
-            frames_omitted_clr: cs(Some(Color::Cyan), true, false),
-            header_clr: cs(Some(Color::Red), false, false),
-            msg_loc_prefix_clr: cs(Some(Color::Cyan), false, false),
-            loc_clr: cs(Some(Color::Magenta), false, false),
-            loc_separator_clr: cs(Some(Color::White), false, false),
-            env_var_clr: cs(None, false, true),
-            dependency_clr: cs(Some(Color::Green), false, false),
-            crate_code_clr: cs(Some(Color::Red), true, false),
-            selected_src_ln_clr: cs(None, false, true),
-
+            colors: ColorScheme::classic(),
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
             // TODO: should we use `Always` here?
@@ -380,6 +398,14 @@ impl Settings {
     /// Alias for `Settings::default`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Alter the color scheme.
+    ///
+    /// Defaults to `ColorScheme::classic()`.
+    pub fn color_scheme(mut self, colors: ColorScheme) -> Self {
+        self.colors = colors;
+        self
     }
 
     /// Controls the "greeting" message of the panic.
@@ -455,7 +481,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) ->
 
     if top_cutoff != 0 {
         let text = format!("({} post panic frames hidden)", top_cutoff);
-        s.out.set_color(&s.frames_omitted_clr)?;
+        s.out.set_color(&s.colors.frames_omitted_msg)?;
         writeln!(s.out, "{:^80}", text)?;
         s.out.reset()?;
     }
@@ -478,7 +504,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) ->
             "({} runtime init frames hidden)",
             num_frames - bottom_cutoff
         );
-        s.out.set_color(&s.frames_omitted_clr)?;
+        s.out.set_color(&s.colors.frames_omitted_msg)?;
         writeln!(s.out, "{:^80}", text)?;
         s.out.reset()?;
     }
@@ -489,7 +515,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) ->
 /// Pretty-prints a [`PanicInfo`](PanicInfo) struct according to the given
 /// settings.
 pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
-    s.out.set_color(&s.header_clr)?;
+    s.out.set_color(&s.colors.header)?;
     writeln!(s.out, "{}", s.message)?;
     s.out.reset()?;
 
@@ -502,18 +528,18 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
         .unwrap_or("<non string panic payload>");
 
     write!(s.out, "Message:  ")?;
-    s.out.set_color(&s.msg_loc_prefix_clr)?;
+    s.out.set_color(&s.colors.msg_loc_prefix)?;
     writeln!(s.out, "{}", payload)?;
     s.out.reset()?;
 
     // If known, print panic location.
     write!(s.out, "Location: ")?;
     if let Some(loc) = pi.location() {
-        s.out.set_color(&s.loc_clr)?;
+        s.out.set_color(&s.colors.src_loc)?;
         write!(s.out, "{}", loc.file())?;
-        s.out.set_color(&s.loc_separator_clr)?;
+        s.out.set_color(&s.colors.src_loc_separator)?;
         write!(s.out, ":")?;
-        s.out.set_color(&s.loc_clr)?;
+        s.out.set_color(&s.colors.src_loc)?;
         writeln!(s.out, "{}", loc.line())?;
         s.out.reset()?;
     } else {
@@ -523,7 +549,7 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     // Print some info on how to increase verbosity.
     if s.verbosity == Verbosity::Minimal {
         write!(s.out, "\nBacktrace omitted. Run with ")?;
-        s.out.set_color(&s.env_var_clr)?;
+        s.out.set_color(&s.colors.env_var)?;
         write!(s.out, "RUST_BACKTRACE=1")?;
         s.out.reset()?;
         writeln!(s.out, " environment variable to display it.")?;
@@ -535,7 +561,7 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
         }
 
         write!(s.out, "Run with ")?;
-        s.out.set_color(&s.env_var_clr)?;
+        s.out.set_color(&s.colors.env_var)?;
         write!(s.out, "RUST_BACKTRACE=full")?;
         s.out.reset()?;
         writeln!(s.out, " to include source snippets.")?;
