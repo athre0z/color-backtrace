@@ -43,7 +43,7 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use term::{self, color, Attr, StderrTerminal};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 #[cfg(feature = "failure-bt")]
 pub mod failure;
@@ -243,7 +243,7 @@ impl Frame {
         for (line, cur_line_no) in surrounding_src.zip(start_line..) {
             if cur_line_no == lineno {
                 // Print actual source line with brighter color.
-                s.out.attr(Attr::Bold)?;
+                s.out.set_color(&s.selected_src_ln_clr)?;
                 writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
                 s.out.reset()?;
             } else {
@@ -273,16 +273,19 @@ impl Frame {
             && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
 
         // Print function name.
-        s.out.fg(if is_dependency_code {
-            color::GREEN
+        s.out.set_color(if is_dependency_code {
+            &s.dependency_clr
         } else {
-            color::BRIGHT_RED
+            &s.crate_code_clr
         })?;
 
-        if has_hash_suffix && s.dim_function_hash_part {
+        if has_hash_suffix {
             write!(s.out, "{}", &name[..name.len() - 19])?;
-            s.out.fg(color::BRIGHT_BLACK)?;
-            writeln!(s.out, "{}", &name[name.len() - 19..])?;
+            if s.strip_function_hash_part {
+                writeln!(s.out)?;
+            } else {
+                writeln!(s.out, "{}", &name[name.len() - 19..])?;
+            }
         } else {
             writeln!(s.out, "{}", name)?;
         }
@@ -315,35 +318,60 @@ impl Frame {
 
 /// Configuration for panic printing.
 pub struct Settings {
+    // TODO: better names
+    frames_omitted_clr: ColorSpec,
+    header_clr: ColorSpec,
+    msg_loc_prefix_clr: ColorSpec,
+    loc_clr: ColorSpec,
+    loc_separator_clr: ColorSpec,
+    env_var_clr: ColorSpec,
+    dependency_clr: ColorSpec,
+    crate_code_clr: ColorSpec,
+    selected_src_ln_clr: ColorSpec,
+
     message: String,
-    out: Box<dyn PanicOutputStream>,
+    out: Box<dyn WriteColor + Send>,
     verbosity: Verbosity,
-    dim_function_hash_part: bool,
+    strip_function_hash_part: bool,
+}
+
+fn mkcs(fg: Option<Color>, bg: Option<Color>, bold: bool) -> ColorSpec {
+    let mut cs = ColorSpec::new();
+    cs.set_fg(fg);
+    cs.set_bg(bg);
+    cs.set_bold(bold);
+    cs
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        let term = term::stderr();
-
         Self {
+            frames_omitted_clr: ColorSpec::new(),
+            header_clr: ColorSpec::new(),
+            msg_loc_prefix_clr: ColorSpec::new(),
+            loc_clr: ColorSpec::new(),
+            loc_separator_clr: ColorSpec::new(),
+            env_var_clr: ColorSpec::new(),
+            dependency_clr: ColorSpec::new(),
+            crate_code_clr: ColorSpec::new(),
+            selected_src_ln_clr: ColorSpec::new(),
+
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
-            out: if term.is_some() && atty::is(atty::Stream::Stderr) {
-                Box::new(ColorizedStderrOutput::new(term.unwrap()))
-            } else {
-                Box::new(StreamOutput::new(std::io::stderr()))
-            },
-            dim_function_hash_part: true,
+            // TODO: should we use `Always` here?
+            out: Box::new(StandardStream::stderr(ColorChoice::Auto)),
+            strip_function_hash_part: true,
         }
     }
 }
 
 impl fmt::Debug for Settings {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: add new fields
         fmt.debug_struct("Settings")
             .field("message", &self.message)
             .field("verbosity", &self.verbosity)
-            .field("dim_function_hash_part", &self.dim_function_hash_part)
+            .field("strip_function_hash_part", &self.strip_function_hash_part)
             .finish()
     }
 }
@@ -366,7 +394,9 @@ impl Settings {
     ///
     /// Defaults to colorized output to `stderr` when attached to a tty
     /// or colorless output when not.
-    pub fn output_stream(mut self, out: Box<dyn PanicOutputStream>) -> Self {
+    ///
+    /// TODO: Update this doc text.
+    pub fn output_stream(mut self, out: Box<dyn WriteColor + Send>) -> Self {
         self.out = out;
         self
     }
@@ -379,120 +409,14 @@ impl Settings {
         self
     }
 
-    /// Controls whether the hash part of functions is printed dimmed.
+    /// Controls whether the hash part of functions is printed stripped.
     ///
     /// Defaults to `true`.
-    pub fn dim_function_hash_part(mut self, dim: bool) -> Self {
-        self.dim_function_hash_part = dim;
+    pub fn strip_function_hash_part(mut self, dim: bool) -> Self {
+        self.strip_function_hash_part = dim;
         self
     }
 }
-
-// ============================================================================================== //
-// [Term output abstraction]                                                                      //
-// ============================================================================================== //
-
-/// Colorization subset of `term::Terminal` trait.
-pub trait Colorize {
-    fn fg(&mut self, color: color::Color) -> IOResult;
-    fn bg(&mut self, color: color::Color) -> IOResult;
-    fn attr(&mut self, attr: Attr) -> IOResult;
-    fn reset(&mut self) -> IOResult;
-}
-
-/// Combined `Colorize + Write + Send` trait, for usage with `Box`.
-pub trait PanicOutputStream: Colorize + Write + Send {}
-
-// ---------------------------------------------------------------------------------------------- //
-// [ColorizedStderrOutput]                                                                        //
-// ---------------------------------------------------------------------------------------------- //
-
-/// Output implementation that prints to `stderr`, with colors enabled.
-pub struct ColorizedStderrOutput {
-    term: Box<StderrTerminal>,
-}
-
-impl ColorizedStderrOutput {
-    pub fn new(term: Box<StderrTerminal>) -> Self {
-        Self { term }
-    }
-}
-
-impl Colorize for ColorizedStderrOutput {
-    fn fg(&mut self, color: color::Color) -> IOResult {
-        Ok(self.term.fg(color)?)
-    }
-
-    fn bg(&mut self, color: color::Color) -> IOResult {
-        Ok(self.term.bg(color)?)
-    }
-
-    fn attr(&mut self, attr: Attr) -> IOResult {
-        Ok(self.term.attr(attr)?)
-    }
-
-    fn reset(&mut self) -> IOResult {
-        Ok(self.term.reset()?)
-    }
-}
-
-impl Write for ColorizedStderrOutput {
-    fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
-        self.term.get_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> IOResult {
-        self.term.get_mut().flush()
-    }
-}
-
-impl PanicOutputStream for ColorizedStderrOutput {}
-
-// ---------------------------------------------------------------------------------------------- //
-// [StreamOutput]                                                                                 //
-// ---------------------------------------------------------------------------------------------- //
-
-/// Output implementation printing to an arbitraty `std::io::Write` stream,
-/// without colors.
-pub struct StreamOutput<T: Write + Send> {
-    stream: T,
-}
-
-impl<T: Write + Send> StreamOutput<T> {
-    pub fn new(stream: T) -> Self {
-        Self { stream }
-    }
-}
-
-impl<T: Write + Send> Write for StreamOutput<T> {
-    fn write(&mut self, buf: &[u8]) -> IOResult<usize> {
-        self.stream.write(buf)
-    }
-
-    fn flush(&mut self) -> IOResult {
-        self.stream.flush()
-    }
-}
-
-impl<T: Write + Send> Colorize for StreamOutput<T> {
-    fn fg(&mut self, _color: color::Color) -> IOResult {
-        Ok(())
-    }
-
-    fn bg(&mut self, _color: color::Color) -> IOResult {
-        Ok(())
-    }
-
-    fn attr(&mut self, _attr: Attr) -> IOResult {
-        Ok(())
-    }
-
-    fn reset(&mut self) -> IOResult {
-        Ok(())
-    }
-}
-
-impl<T: Write + Send> PanicOutputStream for StreamOutput<T> {}
 
 // ============================================================================================== //
 // [Panic printing]                                                                               //
@@ -531,7 +455,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) ->
 
     if top_cutoff != 0 {
         let text = format!("({} post panic frames hidden)", top_cutoff);
-        s.out.fg(color::BRIGHT_CYAN)?;
+        s.out.set_color(&s.frames_omitted_clr)?;
         writeln!(s.out, "{:^80}", text)?;
         s.out.reset()?;
     }
@@ -554,7 +478,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) ->
             "({} runtime init frames hidden)",
             num_frames - bottom_cutoff
         );
-        s.out.fg(color::BRIGHT_CYAN)?;
+        s.out.set_color(&s.frames_omitted_clr)?;
         writeln!(s.out, "{:^80}", text)?;
         s.out.reset()?;
     }
@@ -565,7 +489,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) ->
 /// Pretty-prints a [`PanicInfo`](PanicInfo) struct according to the given
 /// settings.
 pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
-    s.out.fg(color::RED)?;
+    s.out.set_color(&s.header_clr)?;
     writeln!(s.out, "{}", s.message)?;
     s.out.reset()?;
 
@@ -578,18 +502,18 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
         .unwrap_or("<non string panic payload>");
 
     write!(s.out, "Message:  ")?;
-    s.out.fg(color::CYAN)?;
+    s.out.set_color(&s.msg_loc_prefix_clr)?;
     writeln!(s.out, "{}", payload)?;
     s.out.reset()?;
 
     // If known, print panic location.
     write!(s.out, "Location: ")?;
     if let Some(loc) = pi.location() {
-        s.out.fg(color::MAGENTA)?;
+        s.out.set_color(&s.loc_clr)?;
         write!(s.out, "{}", loc.file())?;
-        s.out.fg(color::WHITE)?;
+        s.out.set_color(&s.loc_separator_clr)?;
         write!(s.out, ":")?;
-        s.out.fg(color::MAGENTA)?;
+        s.out.set_color(&s.loc_clr)?;
         writeln!(s.out, "{}", loc.line())?;
         s.out.reset()?;
     } else {
@@ -599,7 +523,7 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
     // Print some info on how to increase verbosity.
     if s.verbosity == Verbosity::Minimal {
         write!(s.out, "\nBacktrace omitted. Run with ")?;
-        s.out.attr(Attr::Bold)?;
+        s.out.set_color(&s.env_var_clr)?;
         write!(s.out, "RUST_BACKTRACE=1")?;
         s.out.reset()?;
         writeln!(s.out, " environment variable to display it.")?;
@@ -611,7 +535,7 @@ pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
         }
 
         write!(s.out, "Run with ")?;
-        s.out.attr(Attr::Bold)?;
+        s.out.set_color(&s.env_var_clr)?;
         write!(s.out, "RUST_BACKTRACE=full")?;
         s.out.reset()?;
         writeln!(s.out, " to include source snippets.")?;
