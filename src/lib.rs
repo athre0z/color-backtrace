@@ -281,7 +281,7 @@ impl Frame {
 
         if has_hash_suffix {
             write!(s.out, "{}", &name[..name.len() - 19])?;
-            if s.strip_function_hash_part {
+            if s.strip_function_hash {
                 writeln!(s.out)?;
             } else {
                 s.out.set_color(if is_dependency_code {
@@ -322,6 +322,7 @@ impl Frame {
 // ============================================================================================== //
 
 /// Color scheme definition.
+#[derive(Debug)]
 pub struct ColorScheme {
     pub frames_omitted_msg: ColorSpec,
     pub header: ColorSpec,
@@ -372,33 +373,36 @@ impl Default for ColorScheme {
 
 /// Configuration for panic printing.
 pub struct Settings {
-    colors: ColorScheme,
     message: String,
     out: Box<dyn WriteColor + Send>,
     verbosity: Verbosity,
-    strip_function_hash_part: bool,
+    strip_function_hash: bool,
+    colors: ColorScheme,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            colors: ColorScheme::classic(),
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
-            // TODO: should we use `Always` here?
-            out: Box::new(StandardStream::stderr(ColorChoice::Auto)),
-            strip_function_hash_part: false,
+            out: Box::new(StandardStream::stderr(if atty::is(atty::Stream::Stderr) {
+                ColorChoice::Always
+            } else {
+                ColorChoice::Never
+            })),
+            strip_function_hash: false,
+            colors: ColorScheme::classic(),
         }
     }
 }
 
 impl fmt::Debug for Settings {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: add new fields
         fmt.debug_struct("Settings")
             .field("message", &self.message)
             .field("verbosity", &self.verbosity)
-            .field("strip_function_hash_part", &self.strip_function_hash_part)
+            .field("strip_function_hash_part", &self.strip_function_hash)
+            .field("colors", &self.colors)
             .finish()
     }
 }
@@ -429,8 +433,6 @@ impl Settings {
     ///
     /// Defaults to colorized output to `stderr` when attached to a tty
     /// or colorless output when not.
-    ///
-    /// TODO: Update this doc text.
     pub fn output_stream(mut self, out: Box<dyn WriteColor + Send>) -> Self {
         self.out = out;
         self
@@ -447,8 +449,8 @@ impl Settings {
     /// Controls whether the hash part of functions is printed stripped.
     ///
     /// Defaults to `false`.
-    pub fn strip_function_hash_part(mut self, strip: bool) -> Self {
-        self.strip_function_hash_part = strip;
+    pub fn strip_function_hash(mut self, strip: bool) -> Self {
+        self.strip_function_hash = strip;
         self
     }
 }

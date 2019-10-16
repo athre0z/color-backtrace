@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- Custom `ColorScheme` support
+
+### Changed
+- Replace `term` crate for colorful term printing with `termcolor`
+  - This crate is more actively maintained, has fewer deps all
+    while providing a richer API
+
+### Removed
+- `Settings::dim_function_hash_part`
+  - Hash part color is now controlled via the `ColorScheme`
+
 ## [v0.2.3] (2019-08-23)
 
 ### Changed
