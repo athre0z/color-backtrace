@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - Forward backtrace-rs' `gimli-symbolize` feature, which is default enabled
   - This is done by adding `default-features = false` to the `Cargo.toml`
     dependency entry for `color-backtrace`
-  - Disabling it reduces transitive dependencies from ~50 -> ~10
+  - Disabling it reduces transitive dependencies from ~50 → ~10
   - However, you'll pay for it with [inaccurate source info](bt-bug) on macOS
     and Linux
 

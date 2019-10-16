@@ -58,8 +58,23 @@ To enable, include the following in your Cargo.toml
 
 ```toml
 [dependencies]
-color-backtrace = { version = "0.2", features = ["failure-bt"] }
+color-backtrace = { version = "0.3", features = ["failure-bt"] }
 ```
+
+### Reducing transitive dependencies
+
+In order to reduce transitive dependencies, you can disable the default
+enabled `gimli-symbolize` feature by adding a `default-features = false`
+clause to your `Cargo.toml` dependency entry, e.g.:
+
+```toml
+[dependencies]
+color-backtrace = { version = "0.3", default-features = false }
+```
+
+This will reduce dependencies from ~50 → ~10. However, you'll pay for it with
+[inaccurate source info](https://github.com/athre0z/color-backtrace/issues/2)
+on macOS and Linux
 
 ### Usage in tests
 
