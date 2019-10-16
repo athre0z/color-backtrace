@@ -18,7 +18,7 @@ keywords = [
 
 [[example]]
 name = "failure"
-required-features = ["failure"]
+required-features = ["failure-bt"]
 
 [features]
 default = ["gimli-symbolize"]

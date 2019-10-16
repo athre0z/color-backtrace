@@ -48,6 +48,9 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 #[cfg(feature = "failure-bt")]
 pub mod failure;
 
+// Re-export termcolor so users don't have to depend on it themselves.
+pub use termcolor;
+
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
 // ============================================================================================== //
