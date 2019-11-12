@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [v0.3.0] (2019-10-XX)
+## [v0.3.0] (2019-11-12)
 
 #### Added
 - Custom `ColorScheme` support
@@ -20,6 +20,9 @@ All notable changes to this project will be documented in this file.
   - Hash part color is now controlled via `ColorScheme`
 
 #### Removed
+- `Colorize`, `ColorizedStderrOutput`, `StreamOutput`, `PanicOutputStream`
+  - This functionality is now all provided by the `termcolor` crate
+  - `termcolor` is re-exported in the root of `color_backtrace`
 - Lots of transitive dependencies!
 
 ## [v0.2.3] (2019-08-23)
