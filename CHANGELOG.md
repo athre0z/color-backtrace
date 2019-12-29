@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
   - This is done by adding `default-features = false` to the `Cargo.toml`
     dependency entry for `color-backtrace`
   - Disabling it reduces transitive dependencies from ~50 → ~10
-  - However, you'll pay for it with [inaccurate source info](bt-bug) on macOS
+  - However, you'll pay for it with [inaccurate source info](https://github.com/athre0z/color-backtrace/issues/2) on macOS
     and Linux
 
 #### Changed
