@@ -55,7 +55,7 @@ pub use termcolor;
 // [Result / Error types]                                                                         //
 // ============================================================================================== //
 
-type IOResult<T = ()> = Result<T, std::io::Error>;
+type IOResult<T = ()> = Result<T, std::fmt::Error>;
 
 // ============================================================================================== //
 // [Verbosity management]                                                                         //
@@ -97,11 +97,7 @@ pub fn create_panic_handler(
     let settings_mutex = Mutex::new(settings);
     Box::new(move |pi| {
         let mut settings_lock = settings_mutex.lock().unwrap();
-        if let Err(e) = print_panic_info(pi, &mut *settings_lock) {
-            // Panicing while handling a panic would send us into a deadlock,
-            // so we just print the error to stderr instead.
-            eprintln!("Error while printing panic: {:?}", e);
-        }
+        eprintln!("{}", print_panic_info(pi, &mut *settings_lock));
     })
 }
 
@@ -226,7 +222,7 @@ impl Frame {
         false
     }
 
-    fn print_source_if_avail(&self, s: &mut Settings) -> IOResult {
+    fn print_source_if_avail(&self, s: &Settings, f: &mut fmt::Formatter<'_>) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
@@ -236,7 +232,7 @@ impl Frame {
         let file = match File::open(filename) {
             Ok(file) => file,
             Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-            e @ Err(_) => e?,
+            e @ Err(_) => e.unwrap(),
         };
 
         // Extract relevant lines.
@@ -246,22 +242,22 @@ impl Frame {
         for (line, cur_line_no) in surrounding_src.zip(start_line..) {
             if cur_line_no == lineno {
                 // Print actual source line with brighter color.
-                s.out.set_color(&s.colors.selected_src_ln)?;
-                writeln!(s.out, "{:>8} > {}", cur_line_no, line?)?;
-                s.out.reset()?;
+                // f.set_color(&s.colors.selected_src_ln)?;
+                writeln!(f, "{:>8} > {}", cur_line_no, line.unwrap())?;
+            // f.reset()?;
             } else {
-                writeln!(s.out, "{:>8} │ {}", cur_line_no, line?)?;
+                writeln!(f, "{:>8} │ {}", cur_line_no, line.unwrap())?;
             }
         }
 
         Ok(())
     }
 
-    fn print(&self, i: usize, s: &mut Settings) -> IOResult {
+    fn print(&self, i: usize, s: &Settings, f: &mut fmt::Formatter<'_>) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
 
         // Print frame index.
-        write!(s.out, "{:>2}: ", i)?;
+        write!(f, "{:>2}: ", i)?;
 
         let name = self
             .name
@@ -276,29 +272,29 @@ impl Frame {
             && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
 
         // Print function name.
-        s.out.set_color(if is_dependency_code {
-            &s.colors.dependency_code
-        } else {
-            &s.colors.crate_code
-        })?;
+        // f.set_color(if is_dependency_code {
+        //     &s.colors.dependency_code
+        // } else {
+        //     &s.colors.crate_code
+        // })?;
 
         if has_hash_suffix {
-            write!(s.out, "{}", &name[..name.len() - 19])?;
+            write!(f, "{}", &name[..name.len() - 19])?;
             if s.strip_function_hash {
-                writeln!(s.out)?;
+                writeln!(f)?;
             } else {
-                s.out.set_color(if is_dependency_code {
-                    &s.colors.dependency_code_hash
-                } else {
-                    &s.colors.crate_code_hash
-                })?;
-                writeln!(s.out, "{}", &name[name.len() - 19..])?;
+                // f.set_color(if is_dependency_code {
+                // &s.colors.dependency_code_hash
+                // } else {
+                // &s.colors.crate_code_hash
+                // })?;
+                writeln!(f, "{}", &name[name.len() - 19..])?;
             }
         } else {
-            writeln!(s.out, "{}", name)?;
+            writeln!(f, "{}", name)?;
         }
 
-        s.out.reset()?;
+        // f.reset()?;
 
         // Print source location, if known.
         if let Some(ref file) = self.filename {
@@ -306,14 +302,14 @@ impl Frame {
             let lineno = self
                 .lineno
                 .map_or("<unknown line>".to_owned(), |x| x.to_string());
-            writeln!(s.out, "    at {}:{}", filestr, lineno)?;
+            writeln!(f, "    at {}:{}", filestr, lineno)?;
         } else {
-            writeln!(s.out, "    at <unknown source file>")?;
+            writeln!(f, "    at <unknown source file>")?;
         }
 
         // Maybe print source.
         if s.verbosity >= Verbosity::Full {
-            self.print_source_if_avail(s)?;
+            self.print_source_if_avail(s, f)?;
         }
 
         Ok(())
@@ -462,130 +458,161 @@ impl Settings {
 // [Panic printing]                                                                               //
 // ============================================================================================== //
 
+struct BacktracePrinter<'a> {
+    trace: &'a backtrace::Backtrace,
+    settings: &'a Settings,
+}
+
+impl<'a> fmt::Display for BacktracePrinter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{:━^80}", " BACKTRACE ")?;
+
+        // Collect frame info.
+        let frames: Vec<_> = self
+            .trace
+            .frames()
+            .iter()
+            .flat_map(|frame| frame.symbols())
+            .map(|sym| Frame {
+                name: sym.name().map(|x| x.to_string()),
+                lineno: sym.lineno(),
+                filename: sym.filename().map(|x| x.into()),
+            })
+            .collect();
+
+        // Try to find where the interesting part starts...
+        let top_cutoff = frames
+            .iter()
+            .rposition(Frame::is_post_panic_code)
+            .map(|x| x + 1)
+            .unwrap_or(0);
+
+        // Try to find where language init frames start ...
+        let bottom_cutoff = frames
+            .iter()
+            .position(Frame::is_runtime_init_code)
+            .unwrap_or_else(|| frames.len());
+
+        if top_cutoff != 0 {
+            let text = format!("({} post panic frames hidden)", top_cutoff);
+            // f.set_color(&s.colors.frames_omitted_msg)?;
+            writeln!(f, "{:^80}", text)?;
+            // f.reset()?;
+        }
+
+        // Turn them into `Frame` objects and print them.
+        let num_frames = frames.len();
+        let frames = frames
+            .into_iter()
+            .skip(top_cutoff)
+            .take(bottom_cutoff - top_cutoff)
+            .zip(top_cutoff..);
+
+        // Print surviving frames.
+        for (frame, i) in frames {
+            frame.print(i, self.settings, f)?;
+        }
+
+        if bottom_cutoff != num_frames {
+            let text = format!(
+                "({} runtime init frames hidden)",
+                num_frames - bottom_cutoff
+            );
+            // f.set_color(&s.colors.frames_omitted_msg)?;
+            writeln!(f, "{:^80}", text)?;
+            // f.reset()?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Pretty-prints a [`backtrace::Backtrace`](backtrace::Backtrace) according the
 /// the given settings.
-pub fn print_backtrace(trace: &backtrace::Backtrace, settings: &mut Settings) -> IOResult {
-    let s = settings;
-    writeln!(s.out, "{:━^80}", " BACKTRACE ")?;
+pub fn print_backtrace<'a>(
+    trace: &'a backtrace::Backtrace,
+    settings: &'a Settings,
+) -> impl fmt::Display + 'a {
+    BacktracePrinter { trace, settings }
+}
 
-    // Collect frame info.
-    let frames: Vec<_> = trace
-        .frames()
-        .iter()
-        .flat_map(|frame| frame.symbols())
-        .map(|sym| Frame {
-            name: sym.name().map(|x| x.to_string()),
-            lineno: sym.lineno(),
-            filename: sym.filename().map(|x| x.into()),
-        })
-        .collect();
+struct PanicPrinter<'a> {
+    pi: &'a PanicInfo<'a>,
+    s: &'a mut Settings,
+}
 
-    // Try to find where the interesting part starts...
-    let top_cutoff = frames
-        .iter()
-        .rposition(Frame::is_post_panic_code)
-        .map(|x| x + 1)
-        .unwrap_or(0);
+impl<'a> fmt::Display for PanicPrinter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let pi = self.pi;
 
-    // Try to find where language init frames start ...
-    let bottom_cutoff = frames
-        .iter()
-        .position(Frame::is_runtime_init_code)
-        .unwrap_or_else(|| frames.len());
+        // f.set_color(&s.colors.header)?;
+        writeln!(f, "{}", self.s.message)?;
+        // f.reset()?;
 
-    if top_cutoff != 0 {
-        let text = format!("({} post panic frames hidden)", top_cutoff);
-        s.out.set_color(&s.colors.frames_omitted_msg)?;
-        writeln!(s.out, "{:^80}", text)?;
-        s.out.reset()?;
+        // Print panic message.
+        let payload = pi
+            .payload()
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| pi.payload().downcast_ref::<&str>().cloned())
+            .unwrap_or("<non string panic payload>");
+
+        write!(f, "Message:  ")?;
+        // f.set_color(&s.colors.msg_loc_prefix)?;
+        writeln!(f, "{}", payload)?;
+        // f.reset()?;
+
+        // If known, print panic location.
+        write!(f, "Location: ")?;
+        if let Some(loc) = pi.location() {
+            // f.set_color(&s.colors.src_loc)?;
+            write!(f, "{}", loc.file())?;
+            // f.set_color(&s.colors.src_loc_separator)?;
+            write!(f, ":")?;
+            // f.set_color(&s.colors.src_loc)?;
+            writeln!(f, "{}", loc.line())?;
+        // f.reset()?;
+        } else {
+            writeln!(f, "<unknown>")?;
+        }
+
+        // Print some info on how to increase verbosity.
+        if self.s.verbosity == Verbosity::Minimal {
+            write!(f, "\nBacktrace omitted. Run with ")?;
+            // f.set_color(&s.colors.env_var)?;
+            write!(f, "RUST_BACKTRACE=1")?;
+            // f.reset()?;
+            writeln!(f, " environment variable to display it.")?;
+        }
+        if self.s.verbosity <= Verbosity::Medium {
+            if self.s.verbosity == Verbosity::Medium {
+                // If exactly medium, no newline was printed before.
+                writeln!(f)?;
+            }
+
+            write!(f, "Run with ")?;
+            // f.set_color(&s.colors.env_var)?;
+            write!(f, "RUST_BACKTRACE=full")?;
+            // f.reset()?;
+            writeln!(f, " to include source snippets.")?;
+        }
+
+        if self.s.verbosity >= Verbosity::Medium {
+            write!(
+                f,
+                "{}",
+                print_backtrace(&backtrace::Backtrace::new(), self.s)
+            )?;
+        }
+
+        Ok(())
     }
-
-    // Turn them into `Frame` objects and print them.
-    let num_frames = frames.len();
-    let frames = frames
-        .into_iter()
-        .skip(top_cutoff)
-        .take(bottom_cutoff - top_cutoff)
-        .zip(top_cutoff..);
-
-    // Print surviving frames.
-    for (frame, i) in frames {
-        frame.print(i, s)?;
-    }
-
-    if bottom_cutoff != num_frames {
-        let text = format!(
-            "({} runtime init frames hidden)",
-            num_frames - bottom_cutoff
-        );
-        s.out.set_color(&s.colors.frames_omitted_msg)?;
-        writeln!(s.out, "{:^80}", text)?;
-        s.out.reset()?;
-    }
-
-    Ok(())
 }
 
 /// Pretty-prints a [`PanicInfo`](PanicInfo) struct according to the given
 /// settings.
-pub fn print_panic_info(pi: &PanicInfo, s: &mut Settings) -> IOResult {
-    s.out.set_color(&s.colors.header)?;
-    writeln!(s.out, "{}", s.message)?;
-    s.out.reset()?;
-
-    // Print panic message.
-    let payload = pi
-        .payload()
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| pi.payload().downcast_ref::<&str>().cloned())
-        .unwrap_or("<non string panic payload>");
-
-    write!(s.out, "Message:  ")?;
-    s.out.set_color(&s.colors.msg_loc_prefix)?;
-    writeln!(s.out, "{}", payload)?;
-    s.out.reset()?;
-
-    // If known, print panic location.
-    write!(s.out, "Location: ")?;
-    if let Some(loc) = pi.location() {
-        s.out.set_color(&s.colors.src_loc)?;
-        write!(s.out, "{}", loc.file())?;
-        s.out.set_color(&s.colors.src_loc_separator)?;
-        write!(s.out, ":")?;
-        s.out.set_color(&s.colors.src_loc)?;
-        writeln!(s.out, "{}", loc.line())?;
-        s.out.reset()?;
-    } else {
-        writeln!(s.out, "<unknown>")?;
-    }
-
-    // Print some info on how to increase verbosity.
-    if s.verbosity == Verbosity::Minimal {
-        write!(s.out, "\nBacktrace omitted. Run with ")?;
-        s.out.set_color(&s.colors.env_var)?;
-        write!(s.out, "RUST_BACKTRACE=1")?;
-        s.out.reset()?;
-        writeln!(s.out, " environment variable to display it.")?;
-    }
-    if s.verbosity <= Verbosity::Medium {
-        if s.verbosity == Verbosity::Medium {
-            // If exactly medium, no newline was printed before.
-            writeln!(s.out)?;
-        }
-
-        write!(s.out, "Run with ")?;
-        s.out.set_color(&s.colors.env_var)?;
-        write!(s.out, "RUST_BACKTRACE=full")?;
-        s.out.reset()?;
-        writeln!(s.out, " to include source snippets.")?;
-    }
-
-    if s.verbosity >= Verbosity::Medium {
-        print_backtrace(&backtrace::Backtrace::new(), s)?;
-    }
-
-    Ok(())
+pub fn print_panic_info<'a>(pi: &'a PanicInfo, s: &'a mut Settings) -> impl fmt::Display + 'a {
+    PanicPrinter { pi, s }
 }
 
 // ============================================================================================== //
