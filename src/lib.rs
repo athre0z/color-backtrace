@@ -37,19 +37,16 @@
 //! [full](Verbosity::Full) verbosity levels.
 
 use backtrace;
+use console::{Color, Style};
 use std::fmt;
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind, Write};
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 #[cfg(feature = "failure-bt")]
 pub mod failure;
-
-// Re-export termcolor so users don't have to depend on it themselves.
-pub use termcolor;
 
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
@@ -241,10 +238,15 @@ impl Frame {
         let surrounding_src = reader.lines().skip(start_line as usize - 1).take(5);
         for (line, cur_line_no) in surrounding_src.zip(start_line..) {
             if cur_line_no == lineno {
-                // Print actual source line with brighter color.
-                // f.set_color(&s.colors.selected_src_ln)?;
-                writeln!(f, "{:>8} > {}", cur_line_no, line.unwrap())?;
-            // f.reset()?;
+                writeln!(
+                    f,
+                    "{}",
+                    s.colors.selected_src_ln.apply_to(format_args!(
+                        "{:>8} > {}",
+                        cur_line_no,
+                        line.unwrap()
+                    ))
+                )?;
             } else {
                 writeln!(f, "{:>8} │ {}", cur_line_no, line.unwrap())?;
             }
@@ -272,26 +274,26 @@ impl Frame {
             && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
 
         // Print function name.
-        // f.set_color(if is_dependency_code {
-        //     &s.colors.dependency_code
-        // } else {
-        //     &s.colors.crate_code
-        // })?;
+        let style = if is_dependency_code {
+            &s.colors.dependency_code
+        } else {
+            &s.colors.crate_code
+        };
 
         if has_hash_suffix {
-            write!(f, "{}", &name[..name.len() - 19])?;
+            write!(f, "{}", style.apply_to(&name[..name.len() - 19]))?;
             if s.strip_function_hash {
                 writeln!(f)?;
             } else {
-                // f.set_color(if is_dependency_code {
-                // &s.colors.dependency_code_hash
-                // } else {
-                // &s.colors.crate_code_hash
-                // })?;
-                writeln!(f, "{}", &name[name.len() - 19..])?;
+                let style = if is_dependency_code {
+                    &s.colors.dependency_code_hash
+                } else {
+                    &s.colors.crate_code_hash
+                };
+                writeln!(f, "{}", style.apply_to(&name[name.len() - 19..]))?;
             }
         } else {
-            writeln!(f, "{}", name)?;
+            writeln!(f, "{}", style.apply_to(name))?;
         }
 
         // f.reset()?;
@@ -323,27 +325,30 @@ impl Frame {
 /// Color scheme definition.
 #[derive(Debug)]
 pub struct ColorScheme {
-    pub frames_omitted_msg: ColorSpec,
-    pub header: ColorSpec,
-    pub msg_loc_prefix: ColorSpec,
-    pub src_loc: ColorSpec,
-    pub src_loc_separator: ColorSpec,
-    pub env_var: ColorSpec,
-    pub dependency_code: ColorSpec,
-    pub dependency_code_hash: ColorSpec,
-    pub crate_code: ColorSpec,
-    pub crate_code_hash: ColorSpec,
-    pub selected_src_ln: ColorSpec,
+    pub frames_omitted_msg: Style,
+    pub header: Style,
+    pub msg_loc_prefix: Style,
+    pub src_loc: Style,
+    pub src_loc_separator: Style,
+    pub env_var: Style,
+    pub dependency_code: Style,
+    pub dependency_code_hash: Style,
+    pub crate_code: Style,
+    pub crate_code_hash: Style,
+    pub selected_src_ln: Style,
 }
 
 impl ColorScheme {
-    /// Helper to create a new `ColorSpec` & set a few properties in one wash.
-    fn cs(fg: Option<Color>, intense: bool, bold: bool) -> ColorSpec {
-        let mut cs = ColorSpec::new();
-        cs.set_fg(fg);
-        cs.set_bold(bold);
-        cs.set_intense(intense);
-        cs
+    /// Helper to create a new `Style` & set a few properties in one wash.
+    fn cs(fg: Option<Color>, intense: bool, bold: bool) -> Style {
+        let cs = Style::new();
+        let cs = if let Some(fg) = fg { cs.fg(fg) } else { cs };
+        let cs = if intense { cs.dim() } else { cs };
+        if bold {
+            cs.bold()
+        } else {
+            cs
+        }
     }
 
     /// The classic `color-backtrace` scheme, as shown in the screenshots.
@@ -373,7 +378,6 @@ impl Default for ColorScheme {
 /// Configuration for panic printing.
 pub struct Settings {
     message: String,
-    out: Box<dyn WriteColor + Send>,
     verbosity: Verbosity,
     strip_function_hash: bool,
     colors: ColorScheme,
@@ -384,11 +388,6 @@ impl Default for Settings {
         Self {
             verbosity: Verbosity::from_env(),
             message: "The application panicked (crashed).".to_owned(),
-            out: Box::new(StandardStream::stderr(if atty::is(atty::Stream::Stderr) {
-                ColorChoice::Always
-            } else {
-                ColorChoice::Never
-            })),
             strip_function_hash: false,
             colors: ColorScheme::classic(),
         }
@@ -425,15 +424,6 @@ impl Settings {
     /// Defaults to `"The application panicked (crashed)"`.
     pub fn message(mut self, message: impl Into<String>) -> Self {
         self.message = message.into();
-        self
-    }
-
-    /// Controls where output is directed to.
-    ///
-    /// Defaults to colorized output to `stderr` when attached to a tty
-    /// or colorless output when not.
-    pub fn output_stream(mut self, out: Box<dyn WriteColor + Send>) -> Self {
-        self.out = out;
         self
     }
 
@@ -495,9 +485,11 @@ impl<'a> fmt::Display for BacktracePrinter<'a> {
 
         if top_cutoff != 0 {
             let text = format!("({} post panic frames hidden)", top_cutoff);
-            // f.set_color(&s.colors.frames_omitted_msg)?;
-            writeln!(f, "{:^80}", text)?;
-            // f.reset()?;
+            writeln!(
+                f,
+                "{:^80}",
+                self.settings.colors.frames_omitted_msg.apply_to(text)
+            )?;
         }
 
         // Turn them into `Frame` objects and print them.
@@ -518,9 +510,11 @@ impl<'a> fmt::Display for BacktracePrinter<'a> {
                 "({} runtime init frames hidden)",
                 num_frames - bottom_cutoff
             );
-            // f.set_color(&s.colors.frames_omitted_msg)?;
-            writeln!(f, "{:^80}", text)?;
-            // f.reset()?;
+            writeln!(
+                f,
+                "{:^80}",
+                self.settings.colors.frames_omitted_msg.apply_to(text)
+            )?;
         }
 
         Ok(())
@@ -545,9 +539,7 @@ impl<'a> fmt::Display for PanicPrinter<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let pi = self.pi;
 
-        // f.set_color(&s.colors.header)?;
-        writeln!(f, "{}", self.s.message)?;
-        // f.reset()?;
+        writeln!(f, "{}", self.s.colors.header.apply_to(&self.s.message))?;
 
         // Print panic message.
         let payload = pi
@@ -558,31 +550,29 @@ impl<'a> fmt::Display for PanicPrinter<'a> {
             .unwrap_or("<non string panic payload>");
 
         write!(f, "Message:  ")?;
-        // f.set_color(&s.colors.msg_loc_prefix)?;
-        writeln!(f, "{}", payload)?;
-        // f.reset()?;
+        writeln!(f, "{}", self.s.colors.msg_loc_prefix.apply_to(payload))?;
 
         // If known, print panic location.
         write!(f, "Location: ")?;
         if let Some(loc) = pi.location() {
-            // f.set_color(&s.colors.src_loc)?;
-            write!(f, "{}", loc.file())?;
-            // f.set_color(&s.colors.src_loc_separator)?;
-            write!(f, ":")?;
-            // f.set_color(&s.colors.src_loc)?;
-            writeln!(f, "{}", loc.line())?;
-        // f.reset()?;
+            writeln!(
+                f,
+                "{}{}{}",
+                self.s.colors.src_loc.apply_to(loc.file()),
+                self.s.colors.src_loc_separator.apply_to(':'),
+                self.s.colors.src_loc.apply_to(loc.line())
+            )?;
         } else {
             writeln!(f, "<unknown>")?;
         }
 
         // Print some info on how to increase verbosity.
         if self.s.verbosity == Verbosity::Minimal {
-            write!(f, "\nBacktrace omitted. Run with ")?;
-            // f.set_color(&s.colors.env_var)?;
-            write!(f, "RUST_BACKTRACE=1")?;
-            // f.reset()?;
-            writeln!(f, " environment variable to display it.")?;
+            writeln!(
+                f,
+                "\nBacktrace omitted. Run with {} environment variable to display it",
+                self.s.colors.env_var.apply_to("RUST_BACKTRACE=1")
+            )?;
         }
         if self.s.verbosity <= Verbosity::Medium {
             if self.s.verbosity == Verbosity::Medium {
@@ -590,11 +580,11 @@ impl<'a> fmt::Display for PanicPrinter<'a> {
                 writeln!(f)?;
             }
 
-            write!(f, "Run with ")?;
-            // f.set_color(&s.colors.env_var)?;
-            write!(f, "RUST_BACKTRACE=full")?;
-            // f.reset()?;
-            writeln!(f, " to include source snippets.")?;
+            writeln!(
+                f,
+                "Run with {} to include source snippets.",
+                self.s.colors.env_var.apply_to("RUST_BACKTRACE=full")
+            )?;
         }
 
         if self.s.verbosity >= Verbosity::Medium {
