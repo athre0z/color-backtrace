@@ -87,12 +87,13 @@ impl Verbosity {
 // [Panic handler and install logic]                                                              //
 // ============================================================================================== //
 
-/// Install the `color_backtrace` handler with default settings.
+/// Install a `PanicPrinter` handler with `::default()` settings.
 ///
 /// This currently is a convenience shortcut for writing
 ///
 /// ```rust
-/// color_backtrace::PanicPrinter::default().install()
+/// use color_backtrace::PanicPrinter;
+/// PanicPrinter::default().install()
 /// ```
 pub fn install() {
     PanicPrinter::default().install();
@@ -110,9 +111,6 @@ pub fn default_output_stream() -> Box<StandardStream> {
     }))
 }
 
-/// Create a `color_backtrace` panic handler.
-///
-/// This can be used if you want to combine the handler with other handlers.
 #[deprecated(
     since = "0.4",
     note = "Use `PanicPrinter::into_panic_handler()` instead."
@@ -131,7 +129,6 @@ pub fn create_panic_handler(
     })
 }
 
-/// Install the `color_backtrace` handler with custom settings.
 #[deprecated(since = "0.4", note = "Use `PanicPrinter::install()` instead.")]
 pub fn install_with_settings(printer: PanicPrinter) {
     std::panic::set_hook(printer.into_panic_handler(default_output_stream()))
@@ -453,10 +450,7 @@ impl PanicPrinter {
     }
 }
 
-// ============================================================================================== //
-// [Panic printing]                                                                               //
-// ============================================================================================== //
-
+/// Routines for putting the panic printer to use.
 impl PanicPrinter {
     /// Install the `color_backtrace` handler with default settings.
     pub fn install(self) {
@@ -543,6 +537,23 @@ impl PanicPrinter {
         Ok(())
     }
 
+    /// Extracts the internal `backtrace::Backtrace` from a `failure::Backtrace` and prints it, if
+    /// one exists. Prints that a backtrace was not capture if one is not found.
+    #[cfg(feature = "failure-bt")]
+    pub unsafe fn print_failure_trace(
+        &self,
+        trace: &::failure::Backtrace,
+        out: &mut impl WriteColor,
+    ) -> IOResult {
+        let internal = failure::backdoortrace(trace);
+
+        if let Some(internal) = internal {
+            self.print_trace(internal, out)
+        } else {
+            writeln!(out, "<failure backtrace not captured>")
+        }
+    }
+
     // TODO: documentation
     pub fn print_trace_to_string(&self, trace: &backtrace::Backtrace) -> IOResult<String> {
         let mut ansi = Ansi::new(vec![]);
@@ -610,6 +621,20 @@ impl PanicPrinter {
 
         Ok(())
     }
+}
+
+// ============================================================================================== //
+// [Deprecated routines for backward compat]                                                      //
+// ============================================================================================== //
+
+#[deprecated(since = "0.4", note = "Use `PanicPrinter::print_trace` instead`")]
+pub fn print_backtrace(trace: &backtrace::Backtrace, s: &mut PanicPrinter) -> IOResult {
+    s.print_trace(trace, &mut default_output_stream())
+}
+
+#[deprecated(since = "0.4", note = "Use `PanicPrinter::print_panic_info` instead`")]
+pub fn print_panic_info(pi: &PanicInfo, s: &mut PanicPrinter) -> IOResult {
+    s.print_panic_info(pi, &mut default_output_stream())
 }
 
 // ============================================================================================== //

@@ -1,5 +1,7 @@
 //! Temporary hack to allow printing of `failure::Backtrace` objects.
 
+use crate::default_output_stream;
+
 struct FakeBacktrace {
     internal: FakeInternalBacktrace,
 }
@@ -33,19 +35,15 @@ pub unsafe fn backdoortrace(_opaque: &failure::Backtrace) -> Option<&backtrace::
     None
 }
 
-/// Extracts the internal `backtrace::Backtrace` from a `failure::Backtrace` and prints it, if one
-/// exists. Prints that a backtrace was not capture if one is not found.
+#[deprecated(
+    since = "0.4",
+    note = "Use `PanicPrinter::print_failure_trace` instead."
+)]
 pub unsafe fn print_backtrace(
     trace: &failure::Backtrace,
-    settings: &mut crate::Settings,
+    printer: &crate::PanicPrinter,
 ) -> crate::IOResult {
-    let internal = backdoortrace(trace);
-
-    if let Some(internal) = internal {
-        super::print_backtrace(internal, settings)
-    } else {
-        writeln!(settings.out, "<failure backtrace not captured>")
-    }
+    printer.print_failure_trace(trace, &mut default_output_stream())
 }
 
 #[cfg(test)]
