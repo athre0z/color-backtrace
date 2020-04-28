@@ -20,8 +20,7 @@ fn fn1() {
 
 fn main() {
     use color_backtrace::{install_with_settings, Settings};
-    let out = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
-    install_with_settings(Settings::new(), out);
+    install_with_settings(Settings::new());
 
     fn1();
 }
