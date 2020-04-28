@@ -1,4 +1,4 @@
-use color_backtrace::{failure::print_backtrace, PanicPrinter};
+use color_backtrace::{default_output_stream, PanicPrinter};
 use failure::{format_err, Fallible};
 
 fn calc_things() -> Fallible<()> {
@@ -13,7 +13,8 @@ fn main() -> Result<(), std::io::Error> {
     if let Err(e) = do_some_stuff() {
         // oh noez!
         unsafe {
-            print_backtrace(&e.backtrace(), &mut PanicPrinter::new())?;
+            PanicPrinter::new()
+                .print_failure_trace(&e.backtrace(), &mut default_output_stream())?;
         }
     }
 

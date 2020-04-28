@@ -25,11 +25,8 @@
 //!
 //! If you want to customize some settings, you can instead do:
 //! ```rust
-//! use color_backtrace::{install_with_settings, default_output_stream, PanicPrinter};
-//! install_with_settings(
-//!     PanicPrinter::new().message("Custom message!"),
-//!     default_output_stream(),
-//! );
+//! use color_backtrace::{default_output_stream, PanicPrinter};
+//! PanicPrinter::new().message("Custom message!").install(default_output_stream());
 //! ```
 //!
 //! ### Controlling verbosity
@@ -92,11 +89,11 @@ impl Verbosity {
 /// This currently is a convenience shortcut for writing
 ///
 /// ```rust
-/// use color_backtrace::PanicPrinter;
-/// PanicPrinter::default().install()
+/// use color_backtrace::{PanicPrinter, default_output_stream};
+/// PanicPrinter::default().install(default_output_stream())
 /// ```
 pub fn install() {
-    PanicPrinter::default().install();
+    PanicPrinter::default().install(default_output_stream());
 }
 
 /// Create the default output stream.
@@ -453,8 +450,12 @@ impl PanicPrinter {
 /// Routines for putting the panic printer to use.
 impl PanicPrinter {
     /// Install the `color_backtrace` handler with default settings.
-    pub fn install(self) {
-        std::panic::set_hook(self.into_panic_handler(default_output_stream()))
+    ///
+    /// Output streams can be created via `default_output_stream()` or
+    /// using any other stream that implements
+    /// [`termcolor::WriteColor`](termcolor::WriteColor).
+    pub fn install(self, out: impl WriteColor + Sync + Send + 'static) {
+        std::panic::set_hook(self.into_panic_handler(out))
     }
 
     /// Create a `color_backtrace` panic handler from this panic printer.
@@ -554,8 +555,9 @@ impl PanicPrinter {
         }
     }
 
-    // TODO: documentation
-    pub fn print_trace_to_string(&self, trace: &backtrace::Backtrace) -> IOResult<String> {
+    /// Pretty-print a backtrace to a `String`, using VT100 color codes.
+    pub fn format_trace_to_string(&self, trace: &backtrace::Backtrace) -> IOResult<String> {
+        // TODO: should we implicitly enable VT100 support on Windows here?
         let mut ansi = Ansi::new(vec![]);
         self.print_trace(trace, &mut ansi)?;
         Ok(String::from_utf8(ansi.into_inner()).unwrap())
