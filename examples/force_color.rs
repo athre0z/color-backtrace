@@ -19,8 +19,9 @@ fn fn1() {
 }
 
 fn main() {
-    use color_backtrace::{install_with_settings, Settings};
-    install_with_settings(Settings::new());
+    use color_backtrace::{termcolor::StandardStream, PanicPrinter};
+    let out = StandardStream::stderr(termcolor::ColorChoice::Always);
+    PanicPrinter::new().install(out);
 
     fn1();
 }

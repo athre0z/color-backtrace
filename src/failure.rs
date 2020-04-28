@@ -55,23 +55,11 @@ mod tests {
         std::env::set_var("RUST_BACKTRACE", "full");
 
         let e = failure::format_err!("arbitrary error :)");
-        let mut settings = crate::Settings::default();
+        let printer = crate::PanicPrinter::new();
         unsafe {
-            print_backtrace(e.backtrace(), &mut settings).unwrap();
-        }
-    }
-
-    #[ignore]
-    #[test]
-    fn without_envvar() {
-        if std::env::var("RUST_BACKTRACE").is_ok() {
-            std::env::remove_var("RUST_BACKTRACE");
-        }
-
-        let e = failure::format_err!("arbitrary error :)");
-        let mut settings = crate::Settings::default();
-        unsafe {
-            print_backtrace(e.backtrace(), &mut settings).unwrap();
+            printer
+                .print_failure_trace(e.backtrace(), &mut default_output_stream())
+                .unwrap();
         }
     }
 }

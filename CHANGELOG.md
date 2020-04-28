@@ -3,13 +3,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+#### Added
+- `PanicPrinter::format_trace_to_string`
+
 #### Changed
-- Added `out` argument to all public print functions
-  - This was previously part of the `Settings` struct, however this was
-    poor design, requiring the `Settings` to be mutable
+- Rename `Settings` -> `PanicPrinter`
+- Move `print_backtrace` -> `PanicPrinter::print_trace`
+- Move `print_panic_info` -> `PanicPrinter::print_panic_info`
+- Move `color_backtrace::failure::print_backtrace` -> 
+  `PanicPrinter::print_failure_trace`
+- The majority of old APIs have deprecated shims that forward calls to
+  their new place to ease porting
+- The `out` setting is no longer part of the `PanicPrinter` and instead
+  supplied as an argument to all functions that need it
   - The previous design forced `Sync + Send + 'static` constraints
     on any output stream since they are required when registering
     the panic handler, but are unnecessary when printing to strings
+  - As a bonus, all format and print functions no longer require
+    mutable access to the `PanicPrinter` instance
 
 ## [v0.3.0] (2019-11-12)
 
