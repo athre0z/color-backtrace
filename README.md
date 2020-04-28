@@ -27,8 +27,11 @@ color_backtrace::install();
 
 If you want to customize some settings, you can instead do:
 ```rust
-use color_backtrace::{install_with_settings, Settings};
-install_with_settings(Settings::new().message("Custom message!"));
+use color_backtrace::{default_output_stream, install_with_settings, Settings};
+install_with_settings(
+    Settings::new().message("Custom message!"),
+    default_output_stream(),
+);
 ```
 
 ### Features

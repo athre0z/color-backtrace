@@ -1,6 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+#### Changed
+- Added `out` argument to all public print functions
+  - This was previously part of the `Settings` struct, however this was
+    poor design, requiring the `Settings` to be mutable
+  - The previous design forced `Sync + Send + 'static` constraints
+    on any output stream since they are required when registering
+    the panic handler, but are unnecessary when printing to strings
+
 ## [v0.3.0] (2019-11-12)
 
 #### Added
