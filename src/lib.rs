@@ -45,7 +45,7 @@ use std::io::{BufRead, BufReader, ErrorKind};
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use termcolor::{Ansi, Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 #[cfg(feature = "failure-bt")]
 pub mod failure;
@@ -520,6 +520,13 @@ pub fn print_backtrace(
     }
 
     Ok(())
+}
+
+// TODO: documentation
+pub fn format_backtrace(trace: &backtrace::Backtrace, settings: &Settings) -> IOResult<String> {
+    let mut ansi = Ansi::new(vec![]);
+    print_backtrace(trace, &mut ansi, settings)?;
+    Ok(String::from_utf8(ansi.into_inner()).unwrap())
 }
 
 /// Pretty-prints a [`PanicInfo`](PanicInfo) struct according to the given
