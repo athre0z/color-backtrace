@@ -1,9 +1,9 @@
-use color_backtrace::{format_backtrace, Settings};
+use color_backtrace::PanicPrinter;
 
 fn main() -> Result<(), std::io::Error> {
     let trace = backtrace::Backtrace::new();
-    let settings = Settings::default();
-    let str = format_backtrace(&trace, &settings)?;
+    let printer = PanicPrinter::default();
+    let str = printer.print_trace_to_string(&trace)?;
 
     if cfg!(windows) {
         println!(
