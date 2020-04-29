@@ -135,13 +135,14 @@ pub fn install_with_settings(printer: PanicPrinter) {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-struct Frame {
+struct Frame<'a> {
     name: Option<String>,
     lineno: Option<u32>,
     filename: Option<PathBuf>,
+    settings: &'a PanicPrinter,
 }
 
-impl Frame {
+impl<'a> Frame<'a> {
     /// Heuristically determine whether the frame is likely to be part of a
     /// dependency.
     ///
@@ -214,7 +215,14 @@ impl Frame {
         ];
 
         match self.name.as_ref() {
-            Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+            Some(name) => {
+                SYM_PREFIXES.iter().any(|x| name.starts_with(x))
+                    || self
+                        .settings
+                        .custom_post_panic
+                        .iter()
+                        .any(|x| name.starts_with(x))
+            }
             None => false,
         }
     }
@@ -394,6 +402,7 @@ pub struct PanicPrinter {
     verbosity: Verbosity,
     strip_function_hash: bool,
     colors: ColorScheme,
+    custom_post_panic: Vec<String>,
 }
 
 impl Default for PanicPrinter {
@@ -403,6 +412,7 @@ impl Default for PanicPrinter {
             message: "The application panicked (crashed).".to_owned(),
             strip_function_hash: false,
             colors: ColorScheme::classic(),
+            custom_post_panic: vec![],
         }
     }
 }
@@ -443,6 +453,16 @@ impl PanicPrinter {
     /// Defaults to `false`.
     pub fn strip_function_hash(mut self, strip: bool) -> Self {
         self.strip_function_hash = strip;
+        self
+    }
+
+    pub fn add_post_panic_frames<T, A>(mut self, frames: T) -> Self
+    where
+        T: IntoIterator<Item = A>,
+        A: ToString,
+    {
+        let frames = frames.into_iter().map(|frame| frame.to_string());
+        self.custom_post_panic.extend(frames);
         self
     }
 }
@@ -489,6 +509,7 @@ impl PanicPrinter {
                 name: sym.name().map(|x| x.to_string()),
                 lineno: sym.lineno(),
                 filename: sym.filename().map(|x| x.into()),
+                settings: self,
             })
             .collect();
 
