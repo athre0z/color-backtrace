@@ -27,8 +27,8 @@ color_backtrace::install();
 
 If you want to customize some settings, you can instead do:
 ```rust
-use color_backtrace::{default_output_stream, PanicPrinter};
-PanicPrinter::new().message("Custom message!").install(default_output_stream());
+use color_backtrace::{default_output_stream, BacktracePrinter};
+BacktracePrinter::new().message("Custom message!").install(default_output_stream());
 ```
 
 ### Features

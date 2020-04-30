@@ -19,9 +19,9 @@ fn fn1() {
 }
 
 fn main() {
-    use color_backtrace::{termcolor::StandardStream, PanicPrinter};
+    use color_backtrace::{termcolor::StandardStream, BacktracePrinter};
     let out = StandardStream::stderr(termcolor::ColorChoice::Always);
-    PanicPrinter::new().install(out);
+    BacktracePrinter::new().install(out);
 
     fn1();
 }
