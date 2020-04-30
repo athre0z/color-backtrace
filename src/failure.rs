@@ -37,11 +37,11 @@ pub unsafe fn backdoortrace(_opaque: &failure::Backtrace) -> Option<&backtrace::
 
 #[deprecated(
     since = "0.4",
-    note = "Use `PanicPrinter::print_failure_trace` instead."
+    note = "Use `BacktracePrinter::print_failure_trace` instead."
 )]
 pub unsafe fn print_backtrace(
     trace: &failure::Backtrace,
-    printer: &crate::PanicPrinter,
+    printer: &crate::BacktracePrinter,
 ) -> crate::IOResult {
     printer.print_failure_trace(trace, &mut default_output_stream())
 }
@@ -55,7 +55,7 @@ mod tests {
         std::env::set_var("RUST_BACKTRACE", "full");
 
         let e = failure::format_err!("arbitrary error :)");
-        let printer = crate::PanicPrinter::new();
+        let printer = crate::BacktracePrinter::new();
         unsafe {
             printer
                 .print_failure_trace(e.backtrace(), &mut default_output_stream())

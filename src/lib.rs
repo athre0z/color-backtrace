@@ -25,8 +25,8 @@
 //!
 //! If you want to customize some settings, you can instead do:
 //! ```rust
-//! use color_backtrace::{default_output_stream, PanicPrinter};
-//! PanicPrinter::new().message("Custom message!").install(default_output_stream());
+//! use color_backtrace::{default_output_stream, BacktracePrinter};
+//! BacktracePrinter::new().message("Custom message!").install(default_output_stream());
 //! ```
 //!
 //! ### Controlling verbosity
@@ -84,16 +84,16 @@ impl Verbosity {
 // [Panic handler and install logic]                                                              //
 // ============================================================================================== //
 
-/// Install a `PanicPrinter` handler with `::default()` settings.
+/// Install a `BacktracePrinter` handler with `::default()` settings.
 ///
 /// This currently is a convenience shortcut for writing
 ///
 /// ```rust
-/// use color_backtrace::{PanicPrinter, default_output_stream};
-/// PanicPrinter::default().install(default_output_stream())
+/// use color_backtrace::{BacktracePrinter, default_output_stream};
+/// BacktracePrinter::default().install(default_output_stream())
 /// ```
 pub fn install() {
-    PanicPrinter::default().install(default_output_stream());
+    BacktracePrinter::default().install(default_output_stream());
 }
 
 /// Create the default output stream.
@@ -110,10 +110,10 @@ pub fn default_output_stream() -> Box<StandardStream> {
 
 #[deprecated(
     since = "0.4",
-    note = "Use `PanicPrinter::into_panic_handler()` instead."
+    note = "Use `BacktracePrinter::into_panic_handler()` instead."
 )]
 pub fn create_panic_handler(
-    printer: PanicPrinter,
+    printer: BacktracePrinter,
 ) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
     let out_stream_mutex = Mutex::new(default_output_stream());
     Box::new(move |pi| {
@@ -126,8 +126,8 @@ pub fn create_panic_handler(
     })
 }
 
-#[deprecated(since = "0.4", note = "Use `PanicPrinter::install()` instead.")]
-pub fn install_with_settings(printer: PanicPrinter) {
+#[deprecated(since = "0.4", note = "Use `BacktracePrinter::install()` instead.")]
+pub fn install_with_settings(printer: BacktracePrinter) {
     std::panic::set_hook(printer.into_panic_handler(default_output_stream()))
 }
 
@@ -242,7 +242,7 @@ impl Frame {
         false
     }
 
-    fn print_source_if_avail(&self, mut out: impl WriteColor, s: &PanicPrinter) -> IOResult {
+    fn print_source_if_avail(&self, mut out: impl WriteColor, s: &BacktracePrinter) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
@@ -273,7 +273,7 @@ impl Frame {
         Ok(())
     }
 
-    fn print(&self, i: usize, out: &mut impl WriteColor, s: &PanicPrinter) -> IOResult {
+    fn print(&self, i: usize, out: &mut impl WriteColor, s: &BacktracePrinter) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
 
         // Print frame index.
@@ -332,7 +332,7 @@ impl Frame {
 }
 
 // ============================================================================================== //
-// [PanicPrinter]                                                                                     //
+// [BacktracePrinter]                                                                                     //
 // ============================================================================================== //
 
 /// Color scheme definition.
@@ -385,18 +385,18 @@ impl Default for ColorScheme {
     }
 }
 
-#[deprecated(since = "0.4", note = "Use `PanicPrinter` instead.")]
-pub type Settings = PanicPrinter;
+#[deprecated(since = "0.4", note = "Use `BacktracePrinter` instead.")]
+pub type Settings = BacktracePrinter;
 
 /// Pretty-printer for backtraces and [`PanicInfo`](PanicInfo) structs.
-pub struct PanicPrinter {
+pub struct BacktracePrinter {
     message: String,
     verbosity: Verbosity,
     strip_function_hash: bool,
     colors: ColorScheme,
 }
 
-impl Default for PanicPrinter {
+impl Default for BacktracePrinter {
     fn default() -> Self {
         Self {
             verbosity: Verbosity::from_env(),
@@ -408,8 +408,8 @@ impl Default for PanicPrinter {
 }
 
 /// Builder functions.
-impl PanicPrinter {
-    /// Alias for `PanicPrinter::default`.
+impl BacktracePrinter {
+    /// Alias for `BacktracePrinter::default`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -448,7 +448,7 @@ impl PanicPrinter {
 }
 
 /// Routines for putting the panic printer to use.
-impl PanicPrinter {
+impl BacktracePrinter {
     /// Install the `color_backtrace` handler with default settings.
     ///
     /// Output streams can be created via `default_output_stream()` or
@@ -629,13 +629,16 @@ impl PanicPrinter {
 // [Deprecated routines for backward compat]                                                      //
 // ============================================================================================== //
 
-#[deprecated(since = "0.4", note = "Use `PanicPrinter::print_trace` instead`")]
-pub fn print_backtrace(trace: &backtrace::Backtrace, s: &mut PanicPrinter) -> IOResult {
+#[deprecated(since = "0.4", note = "Use `BacktracePrinter::print_trace` instead`")]
+pub fn print_backtrace(trace: &backtrace::Backtrace, s: &mut BacktracePrinter) -> IOResult {
     s.print_trace(trace, &mut default_output_stream())
 }
 
-#[deprecated(since = "0.4", note = "Use `PanicPrinter::print_panic_info` instead`")]
-pub fn print_panic_info(pi: &PanicInfo, s: &mut PanicPrinter) -> IOResult {
+#[deprecated(
+    since = "0.4",
+    note = "Use `BacktracePrinter::print_panic_info` instead`"
+)]
+pub fn print_panic_info(pi: &PanicInfo, s: &mut BacktracePrinter) -> IOResult {
     s.print_panic_info(pi, &mut default_output_stream())
 }
 
