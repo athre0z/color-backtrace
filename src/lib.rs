@@ -201,6 +201,55 @@ impl Frame {
         false
     }
 
+    /// Heuristically determine whether a frame is likely to be a post panic
+    /// frame.
+    ///
+    /// Post panic frames are frames of a functions called after the actual panic
+    /// is already in progress and don't contain any useful information for a
+    /// reader of the backtrace.
+    fn is_post_panic_code(&self) -> bool {
+        const SYM_PREFIXES: &[&str] = &[
+            "_rust_begin_unwind",
+            "core::result::unwrap_failed",
+            "core::panicking::panic_fmt",
+            "color_backtrace::create_panic_handler",
+            "std::panicking::begin_panic",
+            "begin_panic_fmt",
+            "failure::backtrace::Backtrace::new",
+            "backtrace::capture",
+            "failure::error_message::err_msg",
+            "<failure::error::Error as core::convert::From<F>>::from",
+        ];
+
+        match self.name.as_ref() {
+            Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
+            None => false,
+        }
+    }
+
+    /// Heuristically determine whether a frame is likely to be part of language
+    /// runtime.
+    fn is_runtime_init_code(&self) -> bool {
+        const SYM_PREFIXES: &[&str] =
+            &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
+
+        let (name, file) = match (self.name.as_ref(), self.filename.as_ref()) {
+            (Some(name), Some(filename)) => (name, filename.to_string_lossy()),
+            _ => return false,
+        };
+
+        if SYM_PREFIXES.iter().any(|x| name.starts_with(x)) {
+            return true;
+        }
+
+        // For Linux, this is the best rule for skipping test init I found.
+        if name == "{{closure}}" && file == "src/libtest/lib.rs" {
+            return true;
+        }
+
+        false
+    }
+
     fn print_source_if_avail(&self, mut out: impl WriteColor, s: &BacktracePrinter) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
@@ -297,45 +346,12 @@ impl Frame {
 /// is already in progress and don't contain any useful information for a
 /// reader of the backtrace.
 fn default_frame_filter(frames: Vec<&Frame>) -> Vec<&Frame> {
-    const SYM_PREFIXES: &[&str] = &[
-        "_rust_begin_unwind",
-        "core::result::unwrap_failed",
-        "core::panicking::panic_fmt",
-        "color_backtrace::create_panic_handler",
-        "std::panicking::begin_panic",
-        "begin_panic_fmt",
-        "failure::backtrace::Backtrace::new",
-        "backtrace::capture",
-        "failure::error_message::err_msg",
-        "<failure::error::Error as core::convert::From<F>>::from",
-        "std::rt::lang_start::",
-        "test::run_test::run_test_inner::",
-    ];
-
     frames
         .into_iter()
         .filter(|frame| {
-            let name = if let Some(name) = frame.name.as_ref() {
-                name
-            } else {
-                return true;
-            };
-
-            if SYM_PREFIXES.iter().any(|f| name.starts_with(f)) {
-                return false;
-            }
-
-            let file = if let Some(file) = frame.filename.as_ref().map(|p| p.as_os_str()) {
-                file
-            } else {
-                return true;
-            };
-
-            if name == "{{closure}}" && file == "src/libtest/lib.rs" {
-                return true;
-            }
-
-            true
+            !frame.is_dependency_code()
+                && !frame.is_post_panic_code()
+                && !frame.is_runtime_init_code()
         })
         .collect()
 }
@@ -534,6 +550,9 @@ impl BacktracePrinter {
             })
             .collect();
 
+        // Turn them into `Frame` objects and print them.
+        let num_frames = frames.len();
+
         let mut frames = frames.iter().collect();
         for filter in &self.filters {
             frames = filter(frames);
@@ -549,16 +568,8 @@ impl BacktracePrinter {
             out.reset()?;
         }
 
-        // Turn them into `Frame` objects and print them.
-        let num_frames = frames.len();
-        let frames = frames
-            .into_iter()
-            .skip(top_cutoff)
-            .take(bottom_cutoff - top_cutoff)
-            .zip(top_cutoff..);
-
         // Print surviving frames.
-        for (frame, i) in frames {
+        for (frame, i) in frames.into_iter().map(|f| (f, f.n)) {
             frame.print(i, out, self)?;
         }
 
