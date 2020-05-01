@@ -340,12 +340,9 @@ impl Frame {
 }
 
 /// The default frame filter. Heuristically determines whether a frame is likely to be an
-/// uninteresting frame. This filters out post panic frames and runtime init frames.
-///
-/// Post panic frames are frames of a functions called after the actual panic
-/// is already in progress and don't contain any useful information for a
-/// reader of the backtrace.
-fn default_frame_filter(frames: Vec<&Frame>) -> Vec<&Frame> {
+/// uninteresting frame. This filters out post panic frames and runtime init frames and dependency
+/// code.
+pub fn default_frame_filter(frames: Vec<&Frame>) -> Vec<&Frame> {
     frames
         .into_iter()
         .filter(|frame| {
