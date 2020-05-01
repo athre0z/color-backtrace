@@ -137,11 +137,6 @@ pub fn install_with_settings(printer: BacktracePrinter) {
 
 pub type FilterCallback = dyn Fn(Vec<&Frame>) -> Vec<&Frame> + Send + Sync + 'static;
 
-// TODO worried about this as a forward compatibility hazard, we might want to add a hidden zero
-// sized field that prevents the constructor from getting exported, otherwise adding a field here
-// would be a breaking change I think.
-//
-// At the very least we should verify that this cannot be constructed in foreign crates.
 pub struct Frame {
     pub name: Option<String>,
     pub lineno: Option<u32>,
