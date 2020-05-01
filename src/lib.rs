@@ -135,10 +135,18 @@ pub fn install_with_settings(printer: BacktracePrinter) {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-struct Frame {
-    name: Option<String>,
-    lineno: Option<u32>,
-    filename: Option<PathBuf>,
+pub type FilterCallback = dyn Fn(Vec<&Frame>) -> Vec<&Frame> + Send + Sync + 'static;
+
+// TODO worried about this as a forward compatibility hazard, we might want to add a hidden zero
+// sized field that prevents the constructor from getting exported, otherwise adding a field here
+// would be a breaking change I think.
+//
+// At the very least we should verify that this cannot be constructed in foreign crates.
+pub struct Frame {
+    pub name: Option<String>,
+    pub lineno: Option<u32>,
+    pub filename: Option<PathBuf>,
+    pub n: usize,
 }
 
 impl Frame {
@@ -188,55 +196,6 @@ impl Frame {
             {
                 return true;
             }
-        }
-
-        false
-    }
-
-    /// Heuristically determine whether a frame is likely to be a post panic
-    /// frame.
-    ///
-    /// Post panic frames are frames of a functions called after the actual panic
-    /// is already in progress and don't contain any useful information for a
-    /// reader of the backtrace.
-    fn is_post_panic_code(&self) -> bool {
-        const SYM_PREFIXES: &[&str] = &[
-            "_rust_begin_unwind",
-            "core::result::unwrap_failed",
-            "core::panicking::panic_fmt",
-            "color_backtrace::create_panic_handler",
-            "std::panicking::begin_panic",
-            "begin_panic_fmt",
-            "failure::backtrace::Backtrace::new",
-            "backtrace::capture",
-            "failure::error_message::err_msg",
-            "<failure::error::Error as core::convert::From<F>>::from",
-        ];
-
-        match self.name.as_ref() {
-            Some(name) => SYM_PREFIXES.iter().any(|x| name.starts_with(x)),
-            None => false,
-        }
-    }
-
-    /// Heuristically determine whether a frame is likely to be part of language
-    /// runtime.
-    fn is_runtime_init_code(&self) -> bool {
-        const SYM_PREFIXES: &[&str] =
-            &["std::rt::lang_start::", "test::run_test::run_test_inner::"];
-
-        let (name, file) = match (self.name.as_ref(), self.filename.as_ref()) {
-            (Some(name), Some(filename)) => (name, filename.to_string_lossy()),
-            _ => return false,
-        };
-
-        if SYM_PREFIXES.iter().any(|x| name.starts_with(x)) {
-            return true;
-        }
-
-        // For Linux, this is the best rule for skipping test init I found.
-        if name == "{{closure}}" && file == "src/libtest/lib.rs" {
-            return true;
         }
 
         false
@@ -331,6 +290,56 @@ impl Frame {
     }
 }
 
+/// The default frame filter. Heuristically determines whether a frame is likely to be an
+/// uninteresting frame. This filters out post panic frames and runtime init frames.
+///
+/// Post panic frames are frames of a functions called after the actual panic
+/// is already in progress and don't contain any useful information for a
+/// reader of the backtrace.
+fn default_frame_filter(frames: Vec<&Frame>) -> Vec<&Frame> {
+    const SYM_PREFIXES: &[&str] = &[
+        "_rust_begin_unwind",
+        "core::result::unwrap_failed",
+        "core::panicking::panic_fmt",
+        "color_backtrace::create_panic_handler",
+        "std::panicking::begin_panic",
+        "begin_panic_fmt",
+        "failure::backtrace::Backtrace::new",
+        "backtrace::capture",
+        "failure::error_message::err_msg",
+        "<failure::error::Error as core::convert::From<F>>::from",
+        "std::rt::lang_start::",
+        "test::run_test::run_test_inner::",
+    ];
+
+    frames
+        .into_iter()
+        .filter(|frame| {
+            let name = if let Some(name) = frame.name.as_ref() {
+                name
+            } else {
+                return true;
+            };
+
+            if SYM_PREFIXES.iter().any(|f| name.starts_with(f)) {
+                return false;
+            }
+
+            let file = if let Some(file) = frame.filename.as_ref().map(|p| p.as_os_str()) {
+                file
+            } else {
+                return true;
+            };
+
+            if name == "{{closure}}" && file == "src/libtest/lib.rs" {
+                return true;
+            }
+
+            true
+        })
+        .collect()
+}
+
 // ============================================================================================== //
 // [BacktracePrinter]                                                                                     //
 // ============================================================================================== //
@@ -394,6 +403,7 @@ pub struct BacktracePrinter {
     verbosity: Verbosity,
     strip_function_hash: bool,
     colors: ColorScheme,
+    filters: Vec<Box<FilterCallback>>,
 }
 
 impl Default for BacktracePrinter {
@@ -403,6 +413,7 @@ impl Default for BacktracePrinter {
             message: "The application panicked (crashed).".to_owned(),
             strip_function_hash: false,
             colors: ColorScheme::classic(),
+            filters: vec![Box::new(default_frame_filter)],
         }
     }
 }
@@ -445,6 +456,35 @@ impl BacktracePrinter {
         self.strip_function_hash = strip;
         self
     }
+
+    /// Add a custom filter to the set of frame filters
+    ///
+    /// Filters are run in the order they are added.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use color_backtrace::{default_output_stream, BacktracePrinter};
+    ///
+    /// BacktracePrinter::new()
+    ///     .add_frame_filter(Box::new(|frames| {
+    ///         frames
+    ///             .into_iter()
+    ///             .filter(|x| x.name.as_ref().map(|s| s.as_str()) != Some("blablablabla"))
+    ///             .collect()
+    ///     }))
+    ///     .install(default_output_stream());
+    /// ```
+    pub fn add_frame_filter(mut self, filter: Box<FilterCallback>) -> Self {
+        self.filters.push(filter);
+        self
+    }
+
+    /// Clears all filters associated with this printer, including the default filter
+    pub fn clear_frame_filters(mut self) -> Self {
+        self.filters.clear();
+        self
+    }
 }
 
 /// Routines for putting the panic printer to use.
@@ -485,25 +525,22 @@ impl BacktracePrinter {
             .frames()
             .iter()
             .flat_map(|frame| frame.symbols())
-            .map(|sym| Frame {
+            .enumerate()
+            .map(|(n, sym)| Frame {
                 name: sym.name().map(|x| x.to_string()),
                 lineno: sym.lineno(),
                 filename: sym.filename().map(|x| x.into()),
+                n,
             })
             .collect();
 
-        // Try to find where the interesting part starts...
-        let top_cutoff = frames
-            .iter()
-            .rposition(Frame::is_post_panic_code)
-            .map(|x| x + 1)
-            .unwrap_or(0);
+        let mut frames = frames.iter().collect();
+        for filter in &self.filters {
+            frames = filter(frames);
+        }
 
-        // Try to find where language init frames start ...
-        let bottom_cutoff = frames
-            .iter()
-            .position(Frame::is_runtime_init_code)
-            .unwrap_or_else(|| frames.len());
+        let top_cutoff = frames.first().map(|frame| frame.n).unwrap_or(0);
+        let bottom_cutoff = frames.last().map(|frame| frame.n).unwrap_or(0);
 
         if top_cutoff != 0 {
             let text = format!("({} post panic frames hidden)", top_cutoff);
