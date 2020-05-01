@@ -36,6 +36,7 @@
 //! [medium](Verbosity::Medium) and `RUST_BACKTRACE=full` to
 //! [full](Verbosity::Full) verbosity levels.
 
+use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind};
 use std::panic::PanicInfo;
@@ -73,12 +74,18 @@ pub enum Verbosity {
 impl Verbosity {
     /// Get the verbosity level from the `RUST_BACKTRACE` env variable.
     pub fn from_env() -> Self {
-        match std::env::var("RUST_BACKTRACE") {
-            Ok(ref x) if x == "full" => Verbosity::Full,
-            Ok(_) => Verbosity::Medium,
-            Err(_) => Verbosity::Minimal,
+        match read_env() {
+            Some(ref x) if x == "full" => Verbosity::Full,
+            Some(_) => Verbosity::Medium,
+            None => Verbosity::Minimal,
         }
     }
+}
+
+fn read_env() -> Option<String> {
+    env::var("RUST_LIB_BACKTRACE")
+        .or_else(|_| env::var("RUST_BACKTRACE"))
+        .ok()
 }
 // ============================================================================================== //
 // [Panic handler and install logic]                                                              //
