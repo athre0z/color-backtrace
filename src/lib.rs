@@ -570,7 +570,7 @@ impl BacktracePrinter {
                     "{decorator} {n} frame{plural} hidden {decorator}",
                     n = n,
                     plural = if n == 1 { "" } else { "s" },
-                    decorator = "⋱⋱⋰⋰⋱⋱⋰⋰⋱⋱",
+                    decorator = "⋮",
                 );
                 writeln!(out, "{:^80}", text)?;
                 out.reset()?;
