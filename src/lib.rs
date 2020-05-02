@@ -139,10 +139,10 @@ pub type FilterCallback = dyn Fn(&mut Vec<&Frame>) + Send + Sync + 'static;
 
 #[derive(Debug)]
 pub struct Frame {
+    pub n: usize,
     pub name: Option<String>,
     pub lineno: Option<u32>,
     pub filename: Option<PathBuf>,
-    pub n: usize,
     _private_ctor: (),
 }
 

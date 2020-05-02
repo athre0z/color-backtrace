@@ -5,12 +5,17 @@ All notable changes to this project will be documented in this file.
 
 #### Added
 - `BacktracePrinter::format_trace_to_string`
+- Ability to add custom frame filter callbacks
+  - `BacktracePrinter::add_frame_filter`
+  - `BacktracePrinter::clear_frame_filters`
+  - `default_frame_filter`
+  - Thanks to @yaahc for helping out with this!
 
 #### Changed
-- Rename `Settings` -> `BacktracePrinter`
-- Move `print_backtrace` -> `BacktracePrinter::print_trace`
-- Move `print_panic_info` -> `BacktracePrinter::print_panic_info`
-- Move `color_backtrace::failure::print_backtrace` ->
+- Rename `Settings` → `BacktracePrinter`
+- Move `print_backtrace` → `BacktracePrinter::print_trace`
+- Move `print_panic_info` → `BacktracePrinter::print_panic_info`
+- Move `color_backtrace::failure::print_backtrace` →
   `BacktracePrinter::print_failure_trace`
 - The majority of old APIs have deprecated shims that forward calls to
   their new place to ease porting
@@ -56,7 +61,7 @@ All notable changes to this project will be documented in this file.
 
 #### Added
 - Experimental support for [failure] error backtraces
-    - Contributed by Jane Lusby (@yaahallo)
+    - Contributed by Jane Lusby (@yaahc)
 
 #### Changed
 - Switch to [gimli] backend for backtraces on macOS and Linux
@@ -79,7 +84,7 @@ All notable changes to this project will be documented in this file.
 - Improved {dependency code,post panic frame,runtime init} heuristics
 - Changed default panic message to be more professional
 - Relicensed from MIT to MIT/Apache-2.0 dual licensing
-- Moved `get_verbosity` -> `Verbosity::from_env`
+- Moved `get_verbosity` → `Verbosity::from_env`
 - Fix readability on light terminal themes
 - Fix deadlock when unwrapping an error while printing the panic
 - Many internal tweaks
