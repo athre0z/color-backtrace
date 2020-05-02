@@ -137,11 +137,13 @@ pub fn install_with_settings(printer: BacktracePrinter) {
 
 pub type FilterCallback = dyn Fn(Vec<&Frame>) -> Vec<&Frame> + Send + Sync + 'static;
 
+#[derive(Debug)]
 pub struct Frame {
     pub name: Option<String>,
     pub lineno: Option<u32>,
     pub filename: Option<PathBuf>,
     pub n: usize,
+    _private_ctor: (),
 }
 
 impl Frame {
@@ -337,15 +339,19 @@ impl Frame {
 /// The default frame filter. Heuristically determines whether a frame is likely to be an
 /// uninteresting frame. This filters out post panic frames and runtime init frames and dependency
 /// code.
-pub fn default_frame_filter(frames: Vec<&Frame>) -> Vec<&Frame> {
-    frames
-        .into_iter()
-        .filter(|frame| {
-            !frame.is_dependency_code()
-                && !frame.is_post_panic_code()
-                && !frame.is_runtime_init_code()
-        })
-        .collect()
+pub fn default_frame_filter(mut frames: Vec<&Frame>) -> Vec<&Frame> {
+    let top_cutoff = frames
+        .iter()
+        .rposition(|x| x.is_post_panic_code())
+        .map(|x| x + 1)
+        .unwrap_or(0);
+
+    let bottom_cutoff = frames
+        .iter()
+        .position(|x| x.is_runtime_init_code())
+        .unwrap_or_else(|| frames.len());
+
+    frames.drain(top_cutoff..bottom_cutoff).collect()
 }
 
 // ============================================================================================== //
@@ -457,7 +463,7 @@ impl BacktracePrinter {
         self
     }
 
-    /// Controls whether the hash part of functions is printed stripped.
+    /// Controls whether the hash part of functions is stripped.
     ///
     /// Defaults to `false`.
     pub fn strip_function_hash(mut self, strip: bool) -> Self {
@@ -533,46 +539,58 @@ impl BacktracePrinter {
             .frames()
             .iter()
             .flat_map(|frame| frame.symbols())
-            .enumerate()
-            .map(|(n, sym)| Frame {
+            .zip(1usize..)
+            .map(|(sym, n)| Frame {
                 name: sym.name().map(|x| x.to_string()),
                 lineno: sym.lineno(),
                 filename: sym.filename().map(|x| x.into()),
                 n,
+                _private_ctor: (),
             })
             .collect();
 
-        // Turn them into `Frame` objects and print them.
-        let num_frames = frames.len();
-
-        let mut frames = frames.iter().collect();
+        let mut filtered_frames = frames.iter().collect();
         for filter in &self.filters {
-            frames = filter(frames);
+            filtered_frames = filter(filtered_frames);
         }
 
-        let top_cutoff = frames.first().map(|frame| frame.n).unwrap_or(0);
-        let bottom_cutoff = frames.last().map(|frame| frame.n).unwrap_or(0);
-
-        if top_cutoff != 0 {
-            let text = format!("({} post panic frames hidden)", top_cutoff);
-            out.set_color(&self.colors.frames_omitted_msg)?;
-            writeln!(out, "{:^80}", text)?;
-            out.reset()?;
+        if filtered_frames.is_empty() {
+            // TODO: Would probably look better centered.
+            return writeln!(out, "<empty backtrace>");
         }
 
-        // Print surviving frames.
-        for (frame, i) in frames.into_iter().map(|f| (f, f.n)) {
-            frame.print(i, out, self)?;
+        // Don't let filters mess with the order.
+        filtered_frames.sort_by_key(|x| x.n);
+
+        macro_rules! print_hidden {
+            ($n:expr) => {
+                out.set_color(&self.colors.frames_omitted_msg)?;
+                let n = $n;
+                let text = format!(
+                    "{decorator} {n} frame{plural} hidden {decorator}",
+                    n = n,
+                    plural = if n == 1 { "" } else { "s" },
+                    decorator = "⋱⋱⋰⋰⋱⋱⋰⋰⋱⋱",
+                );
+                writeln!(out, "{:^80}", text)?;
+                out.reset()?;
+            };
         }
 
-        if bottom_cutoff != num_frames {
-            let text = format!(
-                "({} runtime init frames hidden)",
-                num_frames - bottom_cutoff
-            );
-            out.set_color(&self.colors.frames_omitted_msg)?;
-            writeln!(out, "{:^80}", text)?;
-            out.reset()?;
+        let mut last_n = 0;
+        for frame in &filtered_frames {
+            let frame_delta = frame.n - last_n - 1;
+            if frame_delta != 0 {
+                print_hidden!(frame_delta);
+            }
+            frame.print(frame.n, out, self)?;
+            last_n = frame.n;
+        }
+
+        let last_filtered_n = filtered_frames.last().unwrap().n;
+        let last_unfiltered_n = frames.last().unwrap().n;
+        if last_filtered_n < last_unfiltered_n {
+            print_hidden!(last_unfiltered_n - last_filtered_n);
         }
 
         Ok(())
