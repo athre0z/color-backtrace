@@ -135,7 +135,7 @@ pub fn install_with_settings(printer: BacktracePrinter) {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-pub type FilterCallback = dyn Fn(Vec<&Frame>) -> Vec<&Frame> + Send + Sync + 'static;
+pub type FilterCallback = dyn Fn(&mut Vec<&Frame>) + Send + Sync + 'static;
 
 #[derive(Debug)]
 pub struct Frame {
@@ -339,7 +339,7 @@ impl Frame {
 /// The default frame filter. Heuristically determines whether a frame is likely to be an
 /// uninteresting frame. This filters out post panic frames and runtime init frames and dependency
 /// code.
-pub fn default_frame_filter(mut frames: Vec<&Frame>) -> Vec<&Frame> {
+pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
     let top_cutoff = frames
         .iter()
         .rposition(|x| x.is_post_panic_code())
@@ -351,7 +351,8 @@ pub fn default_frame_filter(mut frames: Vec<&Frame>) -> Vec<&Frame> {
         .position(|x| x.is_runtime_init_code())
         .unwrap_or_else(|| frames.len());
 
-    frames.drain(top_cutoff..bottom_cutoff).collect()
+    let rng = top_cutoff..bottom_cutoff;
+    frames.retain(|x| rng.contains(&x.n))
 }
 
 // ============================================================================================== //
@@ -482,10 +483,7 @@ impl BacktracePrinter {
     ///
     /// BacktracePrinter::new()
     ///     .add_frame_filter(Box::new(|frames| {
-    ///         frames
-    ///             .into_iter()
-    ///             .filter(|x| x.name.as_ref().map(|s| s.as_str()) != Some("blablablabla"))
-    ///             .collect()
+    ///         frames.retain(|x| matches!(&x.name, Some(n) if !n.starts_with("blabla")))
     ///     }))
     ///     .install(default_output_stream());
     /// ```
@@ -551,7 +549,7 @@ impl BacktracePrinter {
 
         let mut filtered_frames = frames.iter().collect();
         for filter in &self.filters {
-            filtered_frames = filter(filtered_frames);
+            filter(&mut filtered_frames);
         }
 
         if filtered_frames.is_empty() {
