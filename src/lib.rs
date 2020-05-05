@@ -135,10 +135,15 @@ pub fn install_with_settings(printer: BacktracePrinter) {
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
-struct Frame {
-    name: Option<String>,
-    lineno: Option<u32>,
-    filename: Option<PathBuf>,
+pub type FilterCallback = dyn Fn(&mut Vec<&Frame>) + Send + Sync + 'static;
+
+#[derive(Debug)]
+pub struct Frame {
+    pub n: usize,
+    pub name: Option<String>,
+    pub lineno: Option<u32>,
+    pub filename: Option<PathBuf>,
+    _private_ctor: (),
 }
 
 impl Frame {
@@ -331,6 +336,25 @@ impl Frame {
     }
 }
 
+/// The default frame filter. Heuristically determines whether a frame is likely to be an
+/// uninteresting frame. This filters out post panic frames and runtime init frames and dependency
+/// code.
+pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
+    let top_cutoff = frames
+        .iter()
+        .rposition(|x| x.is_post_panic_code())
+        .map(|x| x + 1)
+        .unwrap_or(0);
+
+    let bottom_cutoff = frames
+        .iter()
+        .position(|x| x.is_runtime_init_code())
+        .unwrap_or_else(|| frames.len());
+
+    let rng = top_cutoff..bottom_cutoff;
+    frames.retain(|x| rng.contains(&x.n))
+}
+
 // ============================================================================================== //
 // [BacktracePrinter]                                                                                     //
 // ============================================================================================== //
@@ -394,6 +418,7 @@ pub struct BacktracePrinter {
     verbosity: Verbosity,
     strip_function_hash: bool,
     colors: ColorScheme,
+    filters: Vec<Box<FilterCallback>>,
 }
 
 impl Default for BacktracePrinter {
@@ -403,6 +428,7 @@ impl Default for BacktracePrinter {
             message: "The application panicked (crashed).".to_owned(),
             strip_function_hash: false,
             colors: ColorScheme::classic(),
+            filters: vec![Box::new(default_frame_filter)],
         }
     }
 }
@@ -438,11 +464,37 @@ impl BacktracePrinter {
         self
     }
 
-    /// Controls whether the hash part of functions is printed stripped.
+    /// Controls whether the hash part of functions is stripped.
     ///
     /// Defaults to `false`.
     pub fn strip_function_hash(mut self, strip: bool) -> Self {
         self.strip_function_hash = strip;
+        self
+    }
+
+    /// Add a custom filter to the set of frame filters
+    ///
+    /// Filters are run in the order they are added.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use color_backtrace::{default_output_stream, BacktracePrinter};
+    ///
+    /// BacktracePrinter::new()
+    ///     .add_frame_filter(Box::new(|frames| {
+    ///         frames.retain(|x| matches!(&x.name, Some(n) if !n.starts_with("blabla")))
+    ///     }))
+    ///     .install(default_output_stream());
+    /// ```
+    pub fn add_frame_filter(mut self, filter: Box<FilterCallback>) -> Self {
+        self.filters.push(filter);
+        self
+    }
+
+    /// Clears all filters associated with this printer, including the default filter
+    pub fn clear_frame_filters(mut self) -> Self {
+        self.filters.clear();
         self
     }
 }
@@ -485,54 +537,58 @@ impl BacktracePrinter {
             .frames()
             .iter()
             .flat_map(|frame| frame.symbols())
-            .map(|sym| Frame {
+            .zip(1usize..)
+            .map(|(sym, n)| Frame {
                 name: sym.name().map(|x| x.to_string()),
                 lineno: sym.lineno(),
                 filename: sym.filename().map(|x| x.into()),
+                n,
+                _private_ctor: (),
             })
             .collect();
 
-        // Try to find where the interesting part starts...
-        let top_cutoff = frames
-            .iter()
-            .rposition(Frame::is_post_panic_code)
-            .map(|x| x + 1)
-            .unwrap_or(0);
-
-        // Try to find where language init frames start ...
-        let bottom_cutoff = frames
-            .iter()
-            .position(Frame::is_runtime_init_code)
-            .unwrap_or_else(|| frames.len());
-
-        if top_cutoff != 0 {
-            let text = format!("({} post panic frames hidden)", top_cutoff);
-            out.set_color(&self.colors.frames_omitted_msg)?;
-            writeln!(out, "{:^80}", text)?;
-            out.reset()?;
+        let mut filtered_frames = frames.iter().collect();
+        for filter in &self.filters {
+            filter(&mut filtered_frames);
         }
 
-        // Turn them into `Frame` objects and print them.
-        let num_frames = frames.len();
-        let frames = frames
-            .into_iter()
-            .skip(top_cutoff)
-            .take(bottom_cutoff - top_cutoff)
-            .zip(top_cutoff..);
-
-        // Print surviving frames.
-        for (frame, i) in frames {
-            frame.print(i, out, self)?;
+        if filtered_frames.is_empty() {
+            // TODO: Would probably look better centered.
+            return writeln!(out, "<empty backtrace>");
         }
 
-        if bottom_cutoff != num_frames {
-            let text = format!(
-                "({} runtime init frames hidden)",
-                num_frames - bottom_cutoff
-            );
-            out.set_color(&self.colors.frames_omitted_msg)?;
-            writeln!(out, "{:^80}", text)?;
-            out.reset()?;
+        // Don't let filters mess with the order.
+        filtered_frames.sort_by_key(|x| x.n);
+
+        macro_rules! print_hidden {
+            ($n:expr) => {
+                out.set_color(&self.colors.frames_omitted_msg)?;
+                let n = $n;
+                let text = format!(
+                    "{decorator} {n} frame{plural} hidden {decorator}",
+                    n = n,
+                    plural = if n == 1 { "" } else { "s" },
+                    decorator = "⋮",
+                );
+                writeln!(out, "{:^80}", text)?;
+                out.reset()?;
+            };
+        }
+
+        let mut last_n = 0;
+        for frame in &filtered_frames {
+            let frame_delta = frame.n - last_n - 1;
+            if frame_delta != 0 {
+                print_hidden!(frame_delta);
+            }
+            frame.print(frame.n, out, self)?;
+            last_n = frame.n;
+        }
+
+        let last_filtered_n = filtered_frames.last().unwrap().n;
+        let last_unfiltered_n = frames.last().unwrap().n;
+        if last_filtered_n < last_unfiltered_n {
+            print_hidden!(last_unfiltered_n - last_filtered_n);
         }
 
         Ok(())
