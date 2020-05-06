@@ -545,7 +545,7 @@ impl BacktracePrinter {
     ///
     /// This can be used if you want to combine the handler with other handlers.
     pub fn into_panic_handler(
-        self,
+        mut self,
         out: impl WriteColor + Sync + Send + 'static,
     ) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
         self.is_panic_handler = true;
@@ -692,8 +692,8 @@ impl BacktracePrinter {
             out.reset()?;
             writeln!(out, " environment variable to display it.")?;
         }
-        if self.current_verbosity <= Verbosity::Medium {
-            if self.current_verbosity == Verbosity::Medium {
+        if self.current_verbosity() <= Verbosity::Medium {
+            if self.current_verbosity() == Verbosity::Medium {
                 // If exactly medium, no newline was printed before.
                 writeln!(out)?;
             }
@@ -705,7 +705,7 @@ impl BacktracePrinter {
             writeln!(out, " to include source snippets.")?;
         }
 
-        if self.current_verbosity >= Verbosity::Medium {
+        if self.current_verbosity() >= Verbosity::Medium {
             self.print_trace(&backtrace::Backtrace::new(), out)?;
         }
 
