@@ -74,15 +74,19 @@ pub enum Verbosity {
 impl Verbosity {
     /// Get the verbosity level from the `RUST_BACKTRACE` env variable.
     pub fn from_env() -> Self {
-        match read_env() {
-            Some(ref x) if x == "full" => Verbosity::Full,
-            Some(_) => Verbosity::Medium,
-            None => Verbosity::Minimal,
-        }
+        Self::convert_env(env::var("RUST_BACKTRACE").ok())
     }
 
     pub fn lib_from_env() -> Self {
-        match read_lib_env() {
+        Self::convert_env(
+            env::var("RUST_LIB_BACKTRACE")
+                .or_else(|_| env::var("RUST_BACKTRACE"))
+                .ok(),
+        )
+    }
+
+    fn convert_env(env: Option<String>) -> Self {
+        match env {
             Some(ref x) if x == "full" => Verbosity::Full,
             Some(_) => Verbosity::Medium,
             None => Verbosity::Minimal,
@@ -90,15 +94,6 @@ impl Verbosity {
     }
 }
 
-fn read_lib_env() -> Option<String> {
-    env::var("RUST_LIB_BACKTRACE")
-        .or_else(|_| env::var("RUST_BACKTRACE"))
-        .ok()
-}
-
-fn read_env() -> Option<String> {
-    env::var("RUST_BACKTRACE").ok()
-}
 // ============================================================================================== //
 // [Panic handler and install logic]                                                              //
 // ============================================================================================== //
