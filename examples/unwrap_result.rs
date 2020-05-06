@@ -1,9 +1,5 @@
-fn fn4() {
-    fn5(); // Source printing at start the of a file ...
-}
-
 fn fn3() {
-    fn4();
+    fn4(); // Source printing at start the of a file ...
 }
 
 fn fn2() {
@@ -23,7 +19,7 @@ fn main() {
     fn1();
 }
 
-fn fn5() {
+fn fn4() {
     // Source printing at the end of a file
-    Err::<(), ()>(()).unwrap();
+    "x".parse::<u32>().unwrap();
 }

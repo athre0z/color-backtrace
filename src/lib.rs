@@ -72,11 +72,13 @@ pub enum Verbosity {
 }
 
 impl Verbosity {
-    /// Get the verbosity level from the `RUST_BACKTRACE` env variable.
+    /// Get the verbosity level from `RUST_BACKTRACE` env variable.
     pub fn from_env() -> Self {
         Self::convert_env(env::var("RUST_BACKTRACE").ok())
     }
 
+    /// Get the verbosity level from `RUST_LIB_BACKTRACE` env variable,
+    /// falling back to the `RUST_BACKTRACE`.
     pub fn lib_from_env() -> Self {
         Self::convert_env(
             env::var("RUST_LIB_BACKTRACE")
@@ -223,6 +225,7 @@ impl Frame {
             "_rust_begin_unwind",
             "rust_begin_unwind",
             "core::result::unwrap_failed",
+            "core::option::expect_none_failed",
             "core::panicking::panic_fmt",
             "color_backtrace::create_panic_handler",
             "std::panicking::begin_panic",
@@ -358,7 +361,7 @@ pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
     let top_cutoff = frames
         .iter()
         .rposition(|x| x.is_post_panic_code())
-        .map(|x| x + 1)
+        .map(|x| x + 2) // indices are 1 based
         .unwrap_or(0);
 
     let bottom_cutoff = frames
@@ -475,7 +478,7 @@ impl BacktracePrinter {
         self
     }
 
-    /// Controls the verbosity level.
+    /// Controls the verbosity level used when installed as panic handler.
     ///
     /// Defaults to `Verbosity::from_env()`.
     pub fn verbosity(mut self, v: Verbosity) -> Self {
@@ -483,7 +486,7 @@ impl BacktracePrinter {
         self
     }
 
-    /// Controls the lib verbosity level.
+    /// Controls the lib verbosity level used when formatting user provided traces.
     ///
     /// Defaults to `Verbosity::lib_from_env()`.
     pub fn lib_verbosity(mut self, v: Verbosity) -> Self {
