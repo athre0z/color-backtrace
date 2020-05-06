@@ -221,6 +221,7 @@ impl Frame {
     fn is_post_panic_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "_rust_begin_unwind",
+            "rust_begin_unwind",
             "core::result::unwrap_failed",
             "core::panicking::panic_fmt",
             "color_backtrace::create_panic_handler",
@@ -365,12 +366,12 @@ pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
         .position(|x| x.is_runtime_init_code())
         .unwrap_or_else(|| frames.len());
 
-    let rng = top_cutoff..bottom_cutoff;
+    let rng = top_cutoff..=bottom_cutoff;
     frames.retain(|x| rng.contains(&x.n))
 }
 
 // ============================================================================================== //
-// [BacktracePrinter]                                                                                     //
+// [BacktracePrinter]                                                                             //
 // ============================================================================================== //
 
 /// Color scheme definition.
