@@ -123,7 +123,7 @@ pub fn default_output_stream() -> Box<StandardStream> {
 }
 
 #[deprecated(
-    since = "0.4",
+    since = "0.4.0",
     note = "Use `BacktracePrinter::into_panic_handler()` instead."
 )]
 pub fn create_panic_handler(
@@ -140,7 +140,7 @@ pub fn create_panic_handler(
     })
 }
 
-#[deprecated(since = "0.4", note = "Use `BacktracePrinter::install()` instead.")]
+#[deprecated(since = "0.4.0", note = "Use `BacktracePrinter::install()` instead.")]
 pub fn install_with_settings(printer: BacktracePrinter) {
     std::panic::set_hook(printer.into_panic_handler(default_output_stream()))
 }
@@ -424,7 +424,7 @@ impl Default for ColorScheme {
     }
 }
 
-#[deprecated(since = "0.4", note = "Use `BacktracePrinter` instead.")]
+#[deprecated(since = "0.4.0", note = "Use `BacktracePrinter` instead.")]
 pub type Settings = BacktracePrinter;
 
 /// Pretty-printer for backtraces and [`PanicInfo`](PanicInfo) structs.
@@ -721,13 +721,13 @@ impl BacktracePrinter {
 // [Deprecated routines for backward compat]                                                      //
 // ============================================================================================== //
 
-#[deprecated(since = "0.4", note = "Use `BacktracePrinter::print_trace` instead`")]
+#[deprecated(since = "0.4.0", note = "Use `BacktracePrinter::print_trace` instead`")]
 pub fn print_backtrace(trace: &backtrace::Backtrace, s: &mut BacktracePrinter) -> IOResult {
     s.print_trace(trace, &mut default_output_stream())
 }
 
 #[deprecated(
-    since = "0.4",
+    since = "0.4.0",
     note = "Use `BacktracePrinter::print_panic_info` instead`"
 )]
 pub fn print_panic_info(pi: &PanicInfo, s: &mut BacktracePrinter) -> IOResult {
