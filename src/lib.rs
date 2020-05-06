@@ -80,12 +80,24 @@ impl Verbosity {
             None => Verbosity::Minimal,
         }
     }
+
+    pub fn lib_from_env() -> Self {
+        match read_lib_env() {
+            Some(ref x) if x == "full" => Verbosity::Full,
+            Some(_) => Verbosity::Medium,
+            None => Verbosity::Minimal,
+        }
+    }
 }
 
-fn read_env() -> Option<String> {
+fn read_lib_env() -> Option<String> {
     env::var("RUST_LIB_BACKTRACE")
         .or_else(|_| env::var("RUST_BACKTRACE"))
         .ok()
+}
+
+fn read_env() -> Option<String> {
+    env::var("RUST_BACKTRACE").ok()
 }
 // ============================================================================================== //
 // [Panic handler and install logic]                                                              //
@@ -399,7 +411,9 @@ pub type Settings = BacktracePrinter;
 pub struct BacktracePrinter {
     message: String,
     verbosity: Verbosity,
+    lib_verbosity: Verbosity,
     strip_function_hash: bool,
+    is_panic_handler: bool,
     colors: ColorScheme,
 }
 
@@ -407,9 +421,11 @@ impl Default for BacktracePrinter {
     fn default() -> Self {
         Self {
             verbosity: Verbosity::from_env(),
+            lib_verbosity: Verbosity::lib_from_env(),
             message: "The application panicked (crashed).".to_owned(),
             strip_function_hash: false,
             colors: ColorScheme::classic(),
+            is_panic_handler: false,
         }
     }
 }
@@ -439,9 +455,17 @@ impl BacktracePrinter {
 
     /// Controls the verbosity level.
     ///
-    /// Defaults to `Verbosity::get_env()`.
+    /// Defaults to `Verbosity::from_env()`.
     pub fn verbosity(mut self, v: Verbosity) -> Self {
         self.verbosity = v;
+        self
+    }
+
+    /// Controls the lib verbosity level.
+    ///
+    /// Defaults to `Verbosity::lib_from_env()`.
+    pub fn lib_verbosity(mut self, v: Verbosity) -> Self {
+        self.lib_verbosity = v;
         self
     }
 
@@ -472,6 +496,7 @@ impl BacktracePrinter {
         self,
         out: impl WriteColor + Sync + Send + 'static,
     ) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
+        self.is_panic_handler = true;
         let out_stream_mutex = Mutex::new(out);
         Box::new(move |pi| {
             let mut lock = out_stream_mutex.lock().unwrap();
@@ -604,15 +629,15 @@ impl BacktracePrinter {
         }
 
         // Print some info on how to increase verbosity.
-        if self.verbosity == Verbosity::Minimal {
+        if self.current_verbosity() == Verbosity::Minimal {
             write!(out, "\nBacktrace omitted. Run with ")?;
             out.set_color(&self.colors.env_var)?;
             write!(out, "RUST_BACKTRACE=1")?;
             out.reset()?;
             writeln!(out, " environment variable to display it.")?;
         }
-        if self.verbosity <= Verbosity::Medium {
-            if self.verbosity == Verbosity::Medium {
+        if self.current_verbosity <= Verbosity::Medium {
+            if self.current_verbosity == Verbosity::Medium {
                 // If exactly medium, no newline was printed before.
                 writeln!(out)?;
             }
@@ -624,11 +649,19 @@ impl BacktracePrinter {
             writeln!(out, " to include source snippets.")?;
         }
 
-        if self.verbosity >= Verbosity::Medium {
+        if self.current_verbosity >= Verbosity::Medium {
             self.print_trace(&backtrace::Backtrace::new(), out)?;
         }
 
         Ok(())
+    }
+
+    fn current_verbosity(&self) -> Verbosity {
+        if self.is_panic_handler {
+            self.verbosity
+        } else {
+            self.lib_verbosity
+        }
     }
 }
 
