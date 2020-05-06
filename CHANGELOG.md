@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [v0.4.0] (2020-05-06)
 
 #### Added
 - `BacktracePrinter::format_trace_to_string`
@@ -9,7 +9,10 @@ All notable changes to this project will be documented in this file.
   - `BacktracePrinter::add_frame_filter`
   - `BacktracePrinter::clear_frame_filters`
   - `default_frame_filter`
-  - Thanks to @yaahc for helping out with this!
+  - Thanks to [@yaahc] for helping out with this!
+- Prefer `RUST_LIB_BACKTRACE` env var when determining the default
+  verbosity to print non-panic backtraces
+  - Also contributed by [@yaahc]
 
 #### Changed
 - Rename `Settings` → `BacktracePrinter`
@@ -61,7 +64,7 @@ All notable changes to this project will be documented in this file.
 
 #### Added
 - Experimental support for [failure] error backtraces
-    - Contributed by Jane Lusby (@yaahc)
+    - Contributed by Jane Lusby ([@yaahc])
 
 #### Changed
 - Switch to [gimli] backend for backtraces on macOS and Linux
@@ -91,6 +94,7 @@ All notable changes to this project will be documented in this file.
 
 [failure]: https://github.com/rust-lang-nursery/failure
 [gimli]: https://github.com/gimli-rs/gimli
+[@yaahc]: https://github.com/yaahc
 
 [v0.2.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.0
 [v0.2.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.1
