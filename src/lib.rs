@@ -343,7 +343,7 @@ impl Frame {
         }
 
         // Maybe print source.
-        if s.verbosity >= Verbosity::Full {
+        if s.current_verbosity() >= Verbosity::Full {
             self.print_source_if_avail(out, s)?;
         }
 
