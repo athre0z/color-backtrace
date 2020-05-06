@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build_and_test:
+    name: color-backtrace
+    runs-on: "${{ matrix.image_name }}"
+
+    strategy:
+      matrix:
+        image_name: ["macOS-latest", "windows-2016", "ubuntu-18.04"]
+
+    steps:
+      - uses: actions/checkout@v2
+        name: Checkout
+      - uses: actions-rs/cargo@v1
+        name: Build
+        with:
+          command: build
+          args: --all-features --examples
+      - uses: actions-rs/cargo@v1
+        name: Test
+        with:
+          command: test
