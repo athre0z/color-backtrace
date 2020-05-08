@@ -17,7 +17,7 @@ and printing the relevant source snippets.
 
 ```toml
 [dependencies]
-4olor-backtrace = { version = "0.4" }
+color-backtrace = { version = "0.4" }
 ```
 
 To enable it, simply place this code somewhere in your app initialization code:
