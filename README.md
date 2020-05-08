@@ -17,7 +17,7 @@ and printing the relevant source snippets.
 
 ```toml
 [dependencies]
-color-backtrace = { version = "0.3" }
+4olor-backtrace = { version = "0.4" }
 ```
 
 To enable it, simply place this code somewhere in your app initialization code:
@@ -58,7 +58,7 @@ To enable, include the following in your Cargo.toml
 
 ```toml
 [dependencies]
-color-backtrace = { version = "0.3", features = ["failure-bt"] }
+color-backtrace = { version = "0.4", features = ["failure-bt"] }
 ```
 
 ### Reducing transitive dependencies
@@ -69,7 +69,7 @@ clause to your `Cargo.toml` dependency entry, e.g.:
 
 ```toml
 [dependencies]
-color-backtrace = { version = "0.3", default-features = false }
+color-backtrace = { version = "0.4", default-features = false }
 ```
 
 This will reduce dependencies from ~50 → ~10. However, you'll pay for it with

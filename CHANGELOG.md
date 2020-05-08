@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.4.1] (2020-05-08)
+
+#### Fixed
+
+- Use correct verbosity level for string formatting
+- Fix off-by-one in frame hiding code
+  - Hides one additional post-panic frame
+- Slightly improved doc
+
 ## [v0.4.0] (2020-05-06)
 
 #### Added
@@ -102,5 +111,6 @@ All notable changes to this project will be documented in this file.
 [v0.2.3]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.3
 [v0.3.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.3.0
 [v0.4.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.0
+[v0.4.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.1
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2
