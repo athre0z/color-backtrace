@@ -579,8 +579,13 @@ impl BacktracePrinter {
             .collect();
 
         let mut filtered_frames = frames.iter().collect();
-        for filter in &self.filters {
-            filter(&mut filtered_frames);
+        match env::var("COLORBT_SHOW_HIDDEN").ok().as_deref() {
+            Some("1") | Some("on") | Some("y") => (),
+            _ => {
+                for filter in &self.filters {
+                    filter(&mut filtered_frames);
+                }
+            }
         }
 
         if filtered_frames.is_empty() {
@@ -685,18 +690,20 @@ impl BacktracePrinter {
 
         // Print some info on how to increase verbosity.
         if self.current_verbosity() == Verbosity::Minimal {
-            write!(out, "\nBacktrace omitted. Run with ")?;
+            write!(out, "\nBacktrace omitted.\n\nRun with ")?;
             out.set_color(&self.colors.env_var)?;
             write!(out, "RUST_BACKTRACE=1")?;
             out.reset()?;
             writeln!(out, " environment variable to display it.")?;
+        } else {
+            // This text only makes sense if frames are displayed.
+            write!(out, "\nRun with ")?;
+            out.set_color(&self.colors.env_var)?;
+            write!(out, "COLORBT_SHOW_HIDDEN=1")?;
+            out.reset()?;
+            writeln!(out, " environment variable to disable frame filtering.")?;
         }
         if self.current_verbosity() <= Verbosity::Medium {
-            if self.current_verbosity() == Verbosity::Medium {
-                // If exactly medium, no newline was printed before.
-                writeln!(out)?;
-            }
-
             write!(out, "Run with ")?;
             out.set_color(&self.colors.env_var)?;
             write!(out, "RUST_BACKTRACE=full")?;
