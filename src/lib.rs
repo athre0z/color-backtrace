@@ -304,7 +304,11 @@ impl Frame {
 
         // Does the function have a hash suffix?
         // (dodging a dep on the regex crate here)
-        let name = self.name.as_deref().unwrap_or("<unknown>");
+        let name = self
+            .name
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("<unknown>");
         let has_hash_suffix = name.len() > 19
             && &name[name.len() - 19..name.len() - 16] == "::h"
             && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
