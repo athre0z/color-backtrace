@@ -41,7 +41,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind};
 use std::panic::PanicInfo;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use termcolor::{Ansi, Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 #[cfg(feature = "failure-bt")]
@@ -382,7 +382,7 @@ pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
 // ============================================================================================== //
 
 /// Color scheme definition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ColorScheme {
     pub frames_omitted_msg: ColorSpec,
     pub header: ColorSpec,
@@ -435,6 +435,7 @@ impl Default for ColorScheme {
 pub type Settings = BacktracePrinter;
 
 /// Pretty-printer for backtraces and [`PanicInfo`](PanicInfo) structs.
+#[derive(Clone)]
 pub struct BacktracePrinter {
     message: String,
     verbosity: Verbosity,
@@ -442,7 +443,7 @@ pub struct BacktracePrinter {
     strip_function_hash: bool,
     is_panic_handler: bool,
     colors: ColorScheme,
-    filters: Vec<Box<FilterCallback>>,
+    filters: Vec<Arc<FilterCallback>>,
 }
 
 impl Default for BacktracePrinter {
@@ -454,7 +455,7 @@ impl Default for BacktracePrinter {
             strip_function_hash: false,
             colors: ColorScheme::classic(),
             is_panic_handler: false,
-            filters: vec![Box::new(default_frame_filter)],
+            filters: vec![Arc::new(default_frame_filter)],
         }
     }
 }
@@ -522,7 +523,7 @@ impl BacktracePrinter {
     ///     .install(default_output_stream());
     /// ```
     pub fn add_frame_filter(mut self, filter: Box<FilterCallback>) -> Self {
-        self.filters.push(filter);
+        self.filters.push(filter.into());
         self
     }
 
