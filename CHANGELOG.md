@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.4.2] (2020-05-19)
+
+#### Added
+
+- `Clone` and `Debug` impls for `BacktracePrinter`
+- `COLORBT_SHOW_HIDDEN` env variable, disabling frame filtering
+
 ## [v0.4.1] (2020-05-08)
 
 #### Fixed
@@ -112,5 +119,6 @@ All notable changes to this project will be documented in this file.
 [v0.3.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.3.0
 [v0.4.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.0
 [v0.4.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.1
+[v0.4.2]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.2
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2
