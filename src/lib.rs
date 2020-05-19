@@ -460,6 +460,19 @@ impl Default for BacktracePrinter {
     }
 }
 
+impl std::fmt::Debug for BacktracePrinter {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("Settings")
+            .field("message", &self.message)
+            .field("verbosity", &self.verbosity)
+            .field("lib_verbosity", &self.lib_verbosity)
+            .field("strip_function_hash", &self.strip_function_hash)
+            .field("is_panic_handler", &self.is_panic_handler)
+            .field("colors", &self.colors)
+            .finish()
+    }
+}
+
 /// Builder functions.
 impl BacktracePrinter {
     /// Alias for `BacktracePrinter::default`.
