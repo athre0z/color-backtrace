@@ -4,13 +4,16 @@ color-backtrace
 [![Crates.io][crates-badge]][crates-url]
 [![docs.rs][docs-badge]][docs-url]
 [![MIT licensed][mit-badge]][mit-url]
+[![Apache 2.0 licensed][apache-badge]][apache-url]
 
 [crates-badge]: https://img.shields.io/crates/v/color-backtrace.svg
 [crates-url]: https://crates.io/crates/color-backtrace
 [docs-badge]: https://docs.rs/color-backtrace/badge.svg
 [docs-url]: https://docs.rs/color-backtrace/
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[mit-url]: LICENSE
+[mit-url]: LICENSE-MIT
+[apache-badge]: https://img.shields.io/badge/license-Apache%202.0-blue.svg
+[apache-url]: LICENSE-APACHE
 
 A Rust library that makes panics a little less painful by nicely colorizing them
 and printing the relevant source snippets.
