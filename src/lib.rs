@@ -44,9 +44,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use termcolor::{Ansi, Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-#[cfg(feature = "failure-bt")]
-pub mod failure;
-
 // Re-export termcolor so users don't have to depend on it themselves.
 pub use termcolor;
 
@@ -230,10 +227,7 @@ impl Frame {
             "color_backtrace::create_panic_handler",
             "std::panicking::begin_panic",
             "begin_panic_fmt",
-            "failure::backtrace::Backtrace::new",
             "backtrace::capture",
-            "failure::error_message::err_msg",
-            "<failure::error::Error as core::convert::From<F>>::from",
         ];
 
         match self.name.as_ref() {
@@ -649,23 +643,6 @@ impl BacktracePrinter {
         }
 
         Ok(())
-    }
-
-    /// Extracts the internal `backtrace::Backtrace` from a `failure::Backtrace` and prints it, if
-    /// one exists. Prints that a backtrace was not capture if one is not found.
-    #[cfg(feature = "failure-bt")]
-    pub unsafe fn print_failure_trace(
-        &self,
-        trace: &::failure::Backtrace,
-        out: &mut impl WriteColor,
-    ) -> IOResult {
-        let internal = failure::backdoortrace(trace);
-
-        if let Some(internal) = internal {
-            self.print_trace(internal, out)
-        } else {
-            writeln!(out, "<failure backtrace not captured>")
-        }
     }
 
     /// Pretty-print a backtrace to a `String`, using VT100 color codes.

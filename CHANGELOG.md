@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Add `__rust_begin_short_backtrace` filter
+- Remove experimental failure support
+
 ## [v0.4.2] (2020-05-19)
 
 #### Added
