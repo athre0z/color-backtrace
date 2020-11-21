@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [v0.5.0] (2020-11-21)
 
 - Add `__rust_begin_short_backtrace` filter
 - Remove experimental failure support
@@ -125,5 +125,6 @@ All notable changes to this project will be documented in this file.
 [v0.4.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.0
 [v0.4.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.1
 [v0.4.2]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.2
+[v0.5.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.5.0
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2
