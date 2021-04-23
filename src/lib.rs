@@ -156,6 +156,7 @@ pub struct Frame {
     pub name: Option<String>,
     pub lineno: Option<u32>,
     pub filename: Option<PathBuf>,
+    pub ip: usize,
     _private_ctor: (),
 }
 
@@ -293,11 +294,66 @@ impl Frame {
         Ok(())
     }
 
+    /// Get the module's name by walking /proc/self/maps
+    #[cfg(all(
+        feature = "print-addresses",
+        unix,
+        not(any(target_os = "macos", target_os = "ios"))
+    ))]
+    fn module_info(&self) -> Result<(String, usize), String> {
+        use regex::Regex;
+        use std::path::Path;
+        let re = Regex::new(r"^(?P<start>[0-9a-f]{8,16})-(?P<end>[0-9a-f]{8,16}) (?P<perm>[-rwxp]{4}) (?P<offset>[0-9a-f]{8}) [0-9a-f]+:[0-9a-f]+ [0-9]+\s+(?P<path>.*)$")
+            .unwrap();
+
+        let mapsfile = File::open("/proc/self/maps").expect("Unable to open /proc/self/maps");
+
+        for line in BufReader::new(mapsfile).lines() {
+            let line = line.unwrap();
+            if let Some(caps) = re.captures(&line) {
+                let (start, end, path) = (
+                    usize::from_str_radix(caps.name("start").unwrap().as_str(), 16).unwrap(),
+                    usize::from_str_radix(caps.name("end").unwrap().as_str(), 16).unwrap(),
+                    caps.name("path").unwrap().as_str().to_string(),
+                );
+                if self.ip >= start && self.ip < end {
+                    return Ok((
+                        Path::new(&path)
+                            .file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                        start,
+                    ));
+                }
+            }
+        }
+
+        Err(format!(
+            "Couldn't locate a module for address: 0x{:016x}",
+            self.ip
+        ))
+    }
+
     fn print(&self, i: usize, out: &mut impl WriteColor, s: &BacktracePrinter) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
 
         // Print frame index.
         write!(out, "{:>2}: ", i)?;
+
+        #[cfg(all(
+            feature = "print-addresses",
+            unix,
+            not(any(target_os = "macos", target_os = "ios"))
+        ))]
+        if s.should_print_addresses() {
+            if let Ok((module_name, module_base)) = self.module_info() {
+                write!(out, "{}:0x{:08x} - ", module_name, self.ip - module_base)?;
+            } else {
+                write!(out, "0x{:016x} - ", self.ip)?;
+            }
+        }
 
         // Does the function have a hash suffix?
         // (dodging a dep on the regex crate here)
@@ -441,6 +497,7 @@ pub struct BacktracePrinter {
     is_panic_handler: bool,
     colors: ColorScheme,
     filters: Vec<Arc<FilterCallback>>,
+    should_print_addresses: bool,
 }
 
 impl Default for BacktracePrinter {
@@ -453,6 +510,7 @@ impl Default for BacktracePrinter {
             colors: ColorScheme::classic(),
             is_panic_handler: false,
             filters: vec![Arc::new(default_frame_filter)],
+            should_print_addresses: false,
         }
     }
 }
@@ -465,6 +523,7 @@ impl std::fmt::Debug for BacktracePrinter {
             .field("lib_verbosity", &self.lib_verbosity)
             .field("strip_function_hash", &self.strip_function_hash)
             .field("is_panic_handler", &self.is_panic_handler)
+            .field("print_addresses", &self.should_print_addresses)
             .field("colors", &self.colors)
             .finish()
     }
@@ -514,6 +573,19 @@ impl BacktracePrinter {
     /// Defaults to `false`.
     pub fn strip_function_hash(mut self, strip: bool) -> Self {
         self.strip_function_hash = strip;
+        self
+    }
+
+    /// Controls whether addresses (or module offsets if available) should be printed.
+    ///
+    /// Defaults to `false`.
+    #[cfg(all(
+        feature = "print-addresses",
+        unix,
+        not(any(target_os = "macos", target_os = "ios"))
+    ))]
+    pub fn print_addresses(mut self, val: bool) -> Self {
+        self.should_print_addresses = val;
         self
     }
 
@@ -582,13 +654,14 @@ impl BacktracePrinter {
         let frames: Vec<_> = trace
             .frames()
             .iter()
-            .flat_map(|frame| frame.symbols())
+            .flat_map(|frame| frame.symbols().iter().map(move |sym| (frame.ip(), sym)))
             .zip(1usize..)
-            .map(|(sym, n)| Frame {
+            .map(|((ip, sym), n)| Frame {
                 name: sym.name().map(|x| x.to_string()),
                 lineno: sym.lineno(),
                 filename: sym.filename().map(|x| x.into()),
                 n,
+                ip: ip as usize,
                 _private_ctor: (),
             })
             .collect();
@@ -722,6 +795,15 @@ impl BacktracePrinter {
         } else {
             self.lib_verbosity
         }
+    }
+
+    #[cfg(all(
+        feature = "print-addresses",
+        unix,
+        not(any(target_os = "macos", target_os = "ios"))
+    ))]
+    fn should_print_addresses(&self) -> bool {
+        self.should_print_addresses
     }
 }
 
