@@ -335,15 +335,11 @@ impl Frame {
                     caps.name("path").unwrap().as_str().to_string(),
                 );
                 if self.ip >= start && self.ip < end {
-                    return Some((
-                        Path::new(&path)
-                            .file_name()
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .to_string(),
-                        start,
-                    ));
+                    return if let Some(filename) = Path::new(&path).file_name() {
+                        Some((filename.to_str().unwrap().to_string(), start))
+                    } else {
+                        None
+                    };
                 }
             }
         }
