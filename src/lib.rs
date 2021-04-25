@@ -296,15 +296,33 @@ impl Frame {
 
     /// Get the module's name by walking /proc/self/maps
     #[cfg(all(
-        feature = "print-addresses",
+        feature = "resolve-modules",
         unix,
         not(any(target_os = "macos", target_os = "ios"))
     ))]
-    fn module_info(&self) -> Result<(String, usize), String> {
+    fn module_info(&self) -> Option<(String, usize)> {
         use regex::Regex;
         use std::path::Path;
-        let re = Regex::new(r"^(?P<start>[0-9a-f]{8,16})-(?P<end>[0-9a-f]{8,16}) (?P<perm>[-rwxp]{4}) (?P<offset>[0-9a-f]{8}) [0-9a-f]+:[0-9a-f]+ [0-9]+\s+(?P<path>.*)$")
-            .unwrap();
+        let re = Regex::new(
+            r"(?x)
+                ^
+                (?P<start>[0-9a-f]{8,16})
+                -
+                (?P<end>[0-9a-f]{8,16})
+                \s
+                (?P<perm>[-rwxp]{4})
+                \s
+                (?P<offset>[0-9a-f]{8})
+                \s
+                [0-9a-f]+:[0-9a-f]+
+                \s
+                [0-9]+
+                \s+
+                (?P<path>.*)
+                $
+            ",
+        )
+        .unwrap();
 
         let mapsfile = File::open("/proc/self/maps").expect("Unable to open /proc/self/maps");
 
@@ -317,7 +335,7 @@ impl Frame {
                     caps.name("path").unwrap().as_str().to_string(),
                 );
                 if self.ip >= start && self.ip < end {
-                    return Ok((
+                    return Some((
                         Path::new(&path)
                             .file_name()
                             .unwrap()
@@ -330,10 +348,15 @@ impl Frame {
             }
         }
 
-        Err(format!(
-            "Couldn't locate a module for address: 0x{:016x}",
-            self.ip
-        ))
+        None
+    }
+
+    #[cfg(all(
+        feature = "resolve-modules",
+        any(target_os = "macos", target_os = "ios")
+    ))]
+    fn module_info(&self) -> Option<(String, usize)> {
+        None
     }
 
     fn print(&self, i: usize, out: &mut impl WriteColor, s: &BacktracePrinter) -> IOResult {
@@ -342,13 +365,9 @@ impl Frame {
         // Print frame index.
         write!(out, "{:>2}: ", i)?;
 
-        #[cfg(all(
-            feature = "print-addresses",
-            unix,
-            not(any(target_os = "macos", target_os = "ios"))
-        ))]
+        #[cfg(feature = "resolve-modules")]
         if s.should_print_addresses() {
-            if let Ok((module_name, module_base)) = self.module_info() {
+            if let Some((module_name, module_base)) = self.module_info() {
                 write!(out, "{}:0x{:08x} - ", module_name, self.ip - module_base)?;
             } else {
                 write!(out, "0x{:016x} - ", self.ip)?;
@@ -579,11 +598,6 @@ impl BacktracePrinter {
     /// Controls whether addresses (or module offsets if available) should be printed.
     ///
     /// Defaults to `false`.
-    #[cfg(all(
-        feature = "print-addresses",
-        unix,
-        not(any(target_os = "macos", target_os = "ios"))
-    ))]
     pub fn print_addresses(mut self, val: bool) -> Self {
         self.should_print_addresses = val;
         self
@@ -797,11 +811,6 @@ impl BacktracePrinter {
         }
     }
 
-    #[cfg(all(
-        feature = "print-addresses",
-        unix,
-        not(any(target_os = "macos", target_os = "ios"))
-    ))]
     fn should_print_addresses(&self) -> bool {
         self.should_print_addresses
     }
