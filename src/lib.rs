@@ -347,10 +347,11 @@ impl Frame {
         None
     }
 
-    #[cfg(all(
+    #[cfg(not(all(
         feature = "resolve-modules",
-        any(target_os = "macos", target_os = "ios")
-    ))]
+        unix,
+        not(any(target_os = "macos", target_os = "ios"))
+    )))]
     fn module_info(&self) -> Option<(String, usize)> {
         None
     }
