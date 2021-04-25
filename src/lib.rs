@@ -362,7 +362,6 @@ impl Frame {
         // Print frame index.
         write!(out, "{:>2}: ", i)?;
 
-        #[cfg(feature = "resolve-modules")]
         if s.should_print_addresses() {
             if let Some((module_name, module_base)) = self.module_info() {
                 write!(out, "{}:0x{:08x} - ", module_name, self.ip - module_base)?;
