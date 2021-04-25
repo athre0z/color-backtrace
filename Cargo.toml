@@ -19,8 +19,10 @@ keywords = [
 [features]
 default = ["gimli-symbolize"]
 gimli-symbolize = ["backtrace/gimli-symbolize"]
+resolve-modules = ["regex"]
 
 [dependencies]
 termcolor = "1.0"
 atty = "0.2"
 backtrace = "0.3"
+regex = { version = "1.4", optional = true }
