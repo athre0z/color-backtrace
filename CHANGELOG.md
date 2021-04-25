@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.5.1] (2021-04-25)
+- Add the ability to print module_name:offset, or address of frame
+  - Contributed by [@s1341], thanks!
+
 ## [v0.5.0] (2020-11-21)
 
 - Add `__rust_begin_short_backtrace` filter
@@ -116,6 +120,7 @@ All notable changes to this project will be documented in this file.
 [failure]: https://github.com/rust-lang-nursery/failure
 [gimli]: https://github.com/gimli-rs/gimli
 [@yaahc]: https://github.com/yaahc
+[@s1341]: https://github.com/s1341
 
 [v0.2.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.0
 [v0.2.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.2.1
