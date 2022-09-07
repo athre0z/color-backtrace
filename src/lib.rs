@@ -356,7 +356,7 @@ impl Frame {
         None
     }
 
-    fn print(&self, i: usize, out: &mut impl WriteColor, s: &BacktracePrinter) -> IOResult {
+    fn print(&self, i: usize, mut out: impl WriteColor, s: &BacktracePrinter) -> IOResult {
         let is_dependency_code = self.is_dependency_code();
 
         // Print frame index.
@@ -657,7 +657,7 @@ impl BacktracePrinter {
     }
 
     /// Pretty-prints a [`backtrace::Backtrace`](backtrace::Backtrace) to an output stream.
-    pub fn print_trace(&self, trace: &backtrace::Backtrace, out: &mut impl WriteColor) -> IOResult {
+    pub fn print_trace(&self, trace: &backtrace::Backtrace, mut out: impl WriteColor) -> IOResult {
         writeln!(out, "{:━^80}", " BACKTRACE ")?;
 
         // Collect frame info.
@@ -715,7 +715,7 @@ impl BacktracePrinter {
             if frame_delta != 0 {
                 print_hidden!(frame_delta);
             }
-            frame.print(frame.n, out, self)?;
+            frame.print(frame.n, &mut out, self)?;
             last_n = frame.n;
         }
 
@@ -737,7 +737,7 @@ impl BacktracePrinter {
     }
 
     /// Pretty-prints a [`PanicInfo`](PanicInfo) struct to an output stream.
-    pub fn print_panic_info(&self, pi: &PanicInfo, out: &mut impl WriteColor) -> IOResult {
+    pub fn print_panic_info(&self, pi: &PanicInfo, mut out: impl WriteColor) -> IOResult {
         out.set_color(&self.colors.header)?;
         writeln!(out, "{}", self.message)?;
         out.reset()?;
