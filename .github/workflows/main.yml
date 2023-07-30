@@ -1,24 +1,22 @@
 name: CI
 on: [push, pull_request]
-
 jobs:
   build_and_test:
     name: color-backtrace
     runs-on: "${{ matrix.image_name }}"
-
     strategy:
       matrix:
-        image_name: ["macOS-latest", "windows-2016", "ubuntu-18.04"]
-
+        image_name: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
+        features: ["--all-features"]
+        include:
+          - image_name: "ubuntu-22.04"
+            features: "--no-default-features"
     steps:
-      - uses: actions/checkout@v2
-        name: Checkout
-      - uses: actions-rs/cargo@v1
-        name: Build
-        with:
-          command: build
-          args: --all-features --examples
-      - uses: actions-rs/cargo@v1
-        name: Test
-        with:
-          command: test
+      - name: Clone
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build ${{ matrix.features }}
+      - name: Test
+        run: cargo test ${{ matrix.features }}
