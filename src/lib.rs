@@ -38,7 +38,7 @@
 
 use std::env;
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind};
+use std::io::{BufRead, BufReader, ErrorKind, IsTerminal as _};
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -114,7 +114,7 @@ pub fn install() {
 /// If stderr is attached to a tty, this is a colorized stderr, else it's
 /// a plain (colorless) stderr.
 pub fn default_output_stream() -> Box<StandardStream> {
-    Box::new(StandardStream::stderr(if atty::is(atty::Stream::Stderr) {
+    Box::new(StandardStream::stderr(if std::io::stderr().is_terminal() {
         ColorChoice::Always
     } else {
         ColorChoice::Never
