@@ -49,7 +49,7 @@ clause to your `Cargo.toml` dependency entry, e.g.:
 
 ```toml
 [dependencies]
-color-backtrace = { version = "0.5", default-features = false }
+color-backtrace = { version = "0.6", default-features = false }
 ```
 
 This will reduce dependencies from ~50 → ~10. However, you'll pay for it with
