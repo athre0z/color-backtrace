@@ -22,6 +22,6 @@ gimli-symbolize = ["backtrace/gimli-symbolize"]
 resolve-modules = ["regex"]
 
 [dependencies]
-termcolor = "1.0"
-backtrace = "0.3"
-regex = { version = "1.4", optional = true }
+termcolor = "1.1.2"
+backtrace = "0.3.57"
+regex = { version = "1.4.6", optional = true }
