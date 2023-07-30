@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.6.0] (2023-07-30)
+- Replace unmaintained `atty` crate with `std::io::IsTerminal`
+- Minimum supported Rust version raised to 1.70 (hence the bump to 0.6)
+
 ## [v0.5.1] (2021-04-25)
 - Add the ability to print module_name:offset, or address of frame
   - Contributed by [@s1341], thanks!

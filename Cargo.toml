@@ -1,12 +1,13 @@
 [package]
 name = "color-backtrace"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["Joel Höner <athre0z@zyantific.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/athre0z/color-backtrace"
 description = "Colorful panic backtraces"
 readme = "README.md"
+rust-version = "1.70"
 
 keywords = [
     "backtrace",
