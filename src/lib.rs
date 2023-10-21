@@ -166,7 +166,7 @@ impl Frame {
     ///
     /// If it fails to detect some patterns in your code base, feel free to drop
     /// an issue / a pull request!
-    fn is_dependency_code(&self) -> bool {
+    pub fn is_dependency_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "std::",
             "core::",
@@ -218,7 +218,7 @@ impl Frame {
     /// Post panic frames are frames of a functions called after the actual panic
     /// is already in progress and don't contain any useful information for a
     /// reader of the backtrace.
-    fn is_post_panic_code(&self) -> bool {
+    pub fn is_post_panic_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "_rust_begin_unwind",
             "rust_begin_unwind",
@@ -239,7 +239,7 @@ impl Frame {
 
     /// Heuristically determine whether a frame is likely to be part of language
     /// runtime.
-    fn is_runtime_init_code(&self) -> bool {
+    pub fn is_runtime_init_code(&self) -> bool {
         const SYM_PREFIXES: &[&str] = &[
             "std::rt::lang_start::",
             "test::run_test::run_test_inner::",
@@ -263,7 +263,11 @@ impl Frame {
         false
     }
 
-    fn print_source_if_avail(&self, mut out: impl WriteColor, s: &BacktracePrinter) -> IOResult {
+    pub fn print_source_if_avail(
+        &self,
+        mut out: impl WriteColor,
+        s: &BacktracePrinter,
+    ) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
