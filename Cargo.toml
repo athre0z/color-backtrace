@@ -18,9 +18,11 @@ keywords = [
 ]
 
 [features]
-default = ["gimli-symbolize"]
-gimli-symbolize = ["backtrace/gimli-symbolize"]
+default = []
 resolve-modules = ["regex"]
+
+# Deprecated, no longer has any effect: backtrace crate removed corresponding option.
+gimli-symbolize = []
 
 [dependencies]
 termcolor = "1.1.2"
