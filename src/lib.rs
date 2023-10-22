@@ -263,11 +263,7 @@ impl Frame {
         false
     }
 
-    pub fn print_source_if_avail(
-        &self,
-        mut out: impl WriteColor,
-        s: &BacktracePrinter,
-    ) -> IOResult {
+    fn print_source_if_avail(&self, mut out: impl WriteColor, s: &BacktracePrinter) -> IOResult {
         let (lineno, filename) = match (self.lineno, self.filename.as_ref()) {
             (Some(a), Some(b)) => (a, b),
             // Without a line number and file name, we can't sensibly proceed.
