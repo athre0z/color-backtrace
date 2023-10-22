@@ -502,7 +502,7 @@ impl Default for ColorScheme {
 #[deprecated(since = "0.4.0", note = "Use `BacktracePrinter` instead.")]
 pub type Settings = BacktracePrinter;
 
-/// Pretty-printer for backtraces and [`PanicInfo`](PanicInfo) structs.
+/// Pretty-printer for backtraces and [`PanicInfo`] structs.
 #[derive(Clone)]
 pub struct BacktracePrinter {
     message: String,
@@ -631,8 +631,7 @@ impl BacktracePrinter {
     /// Install the `color_backtrace` handler with default settings.
     ///
     /// Output streams can be created via `default_output_stream()` or
-    /// using any other stream that implements
-    /// [`termcolor::WriteColor`](termcolor::WriteColor).
+    /// using any other stream that implements [`termcolor::WriteColor`].
     pub fn install(self, out: impl WriteColor + Sync + Send + 'static) {
         std::panic::set_hook(self.into_panic_handler(out))
     }
@@ -656,7 +655,7 @@ impl BacktracePrinter {
         })
     }
 
-    /// Pretty-prints a [`backtrace::Backtrace`](backtrace::Backtrace) to an output stream.
+    /// Pretty-prints a [`backtrace::Backtrace`] to an output stream.
     pub fn print_trace(&self, trace: &backtrace::Backtrace, out: &mut impl WriteColor) -> IOResult {
         writeln!(out, "{:━^80}", " BACKTRACE ")?;
 
@@ -736,7 +735,7 @@ impl BacktracePrinter {
         Ok(String::from_utf8(ansi.into_inner()).unwrap())
     }
 
-    /// Pretty-prints a [`PanicInfo`](PanicInfo) struct to an output stream.
+    /// Pretty-prints a [`PanicInfo`] struct to an output stream.
     pub fn print_panic_info(&self, pi: &PanicInfo, out: &mut impl WriteColor) -> IOResult {
         out.set_color(&self.colors.header)?;
         writeln!(out, "{}", self.message)?;
