@@ -1,6 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.6.1] (2023-10-23)
+- Publicly expose some helper methods on `Frame` type
+
 ## [v0.6.0] (2023-07-30)
 - Replace unmaintained `atty` crate with `std::io::IsTerminal`
 - Minimum supported Rust version raised to 1.70 (hence the bump to 0.6)
@@ -135,5 +138,7 @@ All notable changes to this project will be documented in this file.
 [v0.4.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.1
 [v0.4.2]: https://github.com/athre0z/color-backtrace/releases/tag/v0.4.2
 [v0.5.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.5.0
+[v0.6.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.0
+[v0.6.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.1
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2
