@@ -147,6 +147,77 @@ pub fn install_with_settings(printer: BacktracePrinter) {
 }
 
 // ============================================================================================== //
+// [Backtrace abstraction]                                                                        //
+// ============================================================================================== //
+
+/// Abstraction over backtrace library implementations.
+pub trait Backtrace {
+    fn frames(&self) -> Vec<Frame>;
+}
+
+#[cfg(feature = "use-backtrace-crate")]
+impl Backtrace for backtrace::Backtrace {
+    fn frames(&self) -> Vec<Frame> {
+        backtrace::Backtrace::frames(self)
+            .iter()
+            .flat_map(|frame| frame.symbols().iter().map(move |sym| (frame.ip(), sym)))
+            .zip(1usize..)
+            .map(|((ip, sym), n)| Frame {
+                name: sym.name().map(|x| x.to_string()),
+                lineno: sym.lineno(),
+                filename: sym.filename().map(|x| x.into()),
+                n,
+                ip: Some(ip as usize),
+                _private_ctor: (),
+            })
+            .collect()
+    }
+}
+
+#[cfg(feature = "use-btparse-crate")]
+impl Backtrace for btparse::Backtrace {
+    fn frames(&self) -> Vec<Frame> {
+        self.frames
+            .iter()
+            .zip(1usize..)
+            .map(|(frame, n)| Frame {
+                n,
+                name: Some(frame.function.clone()),
+                lineno: frame.line.map(|x| x as u32),
+                filename: frame.file.as_ref().map(|x| x.clone().into()),
+                ip: None,
+                _private_ctor: (),
+            })
+            .collect()
+    }
+}
+
+// Capture a backtrace with the most reliable available backtrace implementation.
+fn capture_backtrace() -> Result<Box<dyn Backtrace>, Box<dyn std::error::Error>> {
+    #[cfg(all(feature = "use-backtrace-crate", feature = "use-btparse-crate"))]
+    return Ok(Box::new(backtrace::Backtrace::new()));
+
+    #[cfg(all(feature = "use-backtrace-crate", not(feature = "use-btparse-crate")))]
+    return Ok(Box::new(backtrace::Backtrace::new()));
+
+    #[cfg(all(not(feature = "use-backtrace-crate"), feature = "use-btparse-crate"))]
+    {
+        let bt = std::backtrace::Backtrace::force_capture();
+        return Ok(Box::new(btparse::deserialize(&bt).map_err(Box::new)?));
+    }
+
+    #[cfg(all(
+        not(feature = "use-backtrace-crate"),
+        not(feature = "use-btparse-crate")
+    ))]
+    {
+        return Err(Box::new(
+            "need to enable at least one backtrace crate selector feature",
+        ));
+    }
+}
+
+// ============================================================================================== //
 // [Backtrace frame]                                                                              //
 // ============================================================================================== //
 
@@ -158,7 +229,7 @@ pub struct Frame {
     pub name: Option<String>,
     pub lineno: Option<u32>,
     pub filename: Option<PathBuf>,
-    pub ip: usize,
+    pub ip: Option<usize>,
     _private_ctor: (),
 }
 
@@ -364,11 +435,13 @@ impl Frame {
         // Print frame index.
         write!(out, "{:>2}: ", i)?;
 
-        if s.should_print_addresses() {
-            if let Some((module_name, module_base)) = self.module_info() {
-                write!(out, "{}:0x{:08x} - ", module_name, self.ip - module_base)?;
-            } else {
-                write!(out, "0x{:016x} - ", self.ip)?;
+        if let Some(ip) = self.ip {
+            if s.should_print_addresses() {
+                if let Some((module_name, module_base)) = self.module_info() {
+                    write!(out, "{}:0x{:08x} - ", module_name, ip - module_base)?;
+                } else {
+                    write!(out, "0x{:016x} - ", ip)?;
+                }
             }
         }
 
@@ -659,24 +732,11 @@ impl BacktracePrinter {
     }
 
     /// Pretty-prints a [`backtrace::Backtrace`] to an output stream.
-    pub fn print_trace(&self, trace: &backtrace::Backtrace, out: &mut impl WriteColor) -> IOResult {
+    pub fn print_trace(&self, trace: &dyn Backtrace, out: &mut impl WriteColor) -> IOResult {
         writeln!(out, "{:━^80}", " BACKTRACE ")?;
 
         // Collect frame info.
-        let frames: Vec<_> = trace
-            .frames()
-            .iter()
-            .flat_map(|frame| frame.symbols().iter().map(move |sym| (frame.ip(), sym)))
-            .zip(1usize..)
-            .map(|((ip, sym), n)| Frame {
-                name: sym.name().map(|x| x.to_string()),
-                lineno: sym.lineno(),
-                filename: sym.filename().map(|x| x.into()),
-                n,
-                ip: ip as usize,
-                _private_ctor: (),
-            })
-            .collect();
+        let frames = trace.frames();
 
         let mut filtered_frames = frames.iter().collect();
         match env::var("COLORBT_SHOW_HIDDEN").ok().as_deref() {
@@ -731,7 +791,7 @@ impl BacktracePrinter {
     }
 
     /// Pretty-print a backtrace to a `String`, using VT100 color codes.
-    pub fn format_trace_to_string(&self, trace: &backtrace::Backtrace) -> IOResult<String> {
+    pub fn format_trace_to_string(&self, trace: &dyn Backtrace) -> IOResult<String> {
         // TODO: should we implicitly enable VT100 support on Windows here?
         let mut ansi = Ansi::new(vec![]);
         self.print_trace(trace, &mut ansi)?;
@@ -795,7 +855,10 @@ impl BacktracePrinter {
         }
 
         if self.current_verbosity() >= Verbosity::Medium {
-            self.print_trace(&backtrace::Backtrace::new(), out)?;
+            match capture_backtrace() {
+                Ok(trace) => self.print_trace(&*trace, out)?,
+                Err(e) => writeln!(out, "Failed to capture backtrace: {e}")?,
+            }
         }
 
         Ok(())
@@ -820,6 +883,7 @@ impl BacktracePrinter {
 
 #[doc(hidden)]
 #[deprecated(since = "0.4.0", note = "Use `BacktracePrinter::print_trace` instead`")]
+#[cfg(feature = "use-backtrace-crate")]
 pub fn print_backtrace(trace: &backtrace::Backtrace, s: &mut BacktracePrinter) -> IOResult {
     s.print_trace(trace, &mut default_output_stream())
 }
