@@ -9,22 +9,30 @@ description = "Colorful panic backtraces"
 readme = "README.md"
 rust-version = "1.70"
 
-keywords = [
-    "backtrace",
-    "color",
-    "colour",
-    "stacktrace",
-    "pretty",
-]
+keywords = ["backtrace", "color", "colour", "stacktrace", "pretty"]
 
 [features]
-default = []
-resolve-modules = ["regex"]
+default = ["use-backtrace-crate"]
+
+# Print module memory mappings. Only takes effect on Linux.
+resolve-modules = ["dep:regex", "use-backtrace-crate"]
+
+# Uses backtrace-rs crate. Reliable. Preferred over btparse if both are enabled.
+use-backtrace-crate = ["dep:backtrace"]
+
+# Uses btparse to parse the unstable debug repr of std::backtrace::Backtrace.
+# Not guaranteed to work if Rust decides to change the format, but fewer dependencies.
+use-btparse-crate = ["dep:btparse"]
 
 # Deprecated, no longer has any effect: backtrace crate removed corresponding option.
 gimli-symbolize = []
 
 [dependencies]
 termcolor = "1.1.2"
-backtrace = "0.3.57"
+backtrace = { version = "0.3.57", optional = true }
 regex = { version = "1.4.6", optional = true }
+btparse = { version = "*", optional = true }
+
+[[example]]
+name = "fmt_to_string"
+required-features = ["use-backtrace-crate"]

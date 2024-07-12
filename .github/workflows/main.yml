@@ -10,7 +10,9 @@ jobs:
         features: ["--all-features"]
         include:
           - image_name: "ubuntu-22.04"
-            features: "--no-default-features"
+            features: "--no-default-features" # can't print any traces, but should compile at least
+          - image_name: "ubuntu-22.04"
+            features: "--no-default-features --features use-btparse-crate"
     steps:
       - name: Clone
         uses: actions/checkout@v3

@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+- Add `Backtrace` trait to abstract over backtrace implementation
+- Changed `Frame::ip` type `usize` -> `Option<usize>`
+- `BacktracePrinter::print_trace` now takes `&dyn Backtrace` instead of `&backtrace::Backtrace`
+  - This may be API breaking when users use `default-features = false` so that `&backtrace::Backtrace` doesn't coerce to `&dyn Backtrace`
+- Add experimental support for `std::backtrace::Backtrace`
+  - Enable via `{ default-features = false, features = ["use-btparse-crate"] }`
+
 ## [v0.6.1] (2023-10-23)
 - Publicly expose some helper methods on `Frame` type
 
