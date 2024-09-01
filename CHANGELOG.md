@@ -2,6 +2,8 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+
+## [v0.7.0] (2025-02-09)
 - Add `Backtrace` trait to abstract over backtrace implementation
 - Changed `Frame::ip` type `usize` -> `Option<usize>`
 - `BacktracePrinter::print_trace` now takes `&dyn Backtrace` instead of `&backtrace::Backtrace`

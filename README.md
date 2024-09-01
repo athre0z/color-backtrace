@@ -20,7 +20,7 @@ and printing the relevant source snippets.
 
 ```toml
 [dependencies]
-color-backtrace = { version = "0.6" }
+color-backtrace = { version = "0.7" }
 ```
 
 To enable it, simply place this code somewhere in your app initialization code:
@@ -42,15 +42,19 @@ BacktracePrinter::new().message("Custom message!").install(default_output_stream
 - Hide all the frames after the panic was already initiated
 - Hide language runtime initialization frames
 
+### Screenshot
+
+![Screenshot](https://i.imgur.com/yzp0KH6.png)
+
 ### Reducing transitive dependencies
 
 It is possible to use the alternative [`btparse`] backtrace capturing backend
 instead of the default route that links [`backtrace`]:
 
-```
+```toml
 [dependencies]
 color-backtrace = {
-  version = "0.6",
+  version = "0.7",
   default-features = false,
   features = ["use-btparse-crate"],
 }
@@ -124,6 +128,3 @@ mod tests {
 
 You can also do this outside of a `#[cfg(test)]` section, in which case the
 panic handler is installed for both test and regular runs.
-
-### Screenshot
-![Screenshot](https://i.imgur.com/jLznHxp.png)
