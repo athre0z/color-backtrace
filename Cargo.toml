@@ -31,7 +31,7 @@ gimli-symbolize = []
 termcolor = "1.1.2"
 backtrace = { version = "0.3.57", optional = true }
 regex = { version = "1.4.6", optional = true }
-btparse = { version = "*", optional = true }
+btparse = { git = "https://github.com/yaahc/btparse.git", rev = "54f9ddb8c7c8f8e034226fdcacab93cd76e1453b", optional = true }
 
 [[example]]
 name = "fmt_to_string"
