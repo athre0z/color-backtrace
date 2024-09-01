@@ -7,9 +7,11 @@
 //! dependencies (green).
 //!
 //! ### Screenshot
-//! ![Screenshot](https://i.imgur.com/jLznHxp.png)
+//!
+//! ![Screenshot](https://i.imgur.com/yzp0KH6.png)
 //!
 //! ### Features
+//!
 //! - Colorize backtraces to be easier on the eyes
 //! - Show source snippets if source files are found on disk
 //! - Print frames of application code vs dependencies in different color
@@ -30,6 +32,7 @@
 //! ```
 //!
 //! ### Controlling verbosity
+//!
 //! The default verbosity is configured via the `RUST_BACKTRACE` environment
 //! variable. An unset `RUST_BACKTRACE` corresponds to
 //! [minimal](Verbosity::Minimal), `RUST_BACKTRACE=1` to
