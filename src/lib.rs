@@ -50,6 +50,10 @@ use termcolor::{Ansi, Color, ColorChoice, ColorSpec, StandardStream, WriteColor}
 // Re-export termcolor so users don't have to depend on it themselves.
 pub use termcolor;
 
+// Re-export btparse as it has the deserialize function
+#[cfg(feature = "use-btparse-crate")]
+pub use btparse;
+
 // ============================================================================================== //
 // [Result / Error types]                                                                         //
 // ============================================================================================== //
