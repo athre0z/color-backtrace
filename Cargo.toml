@@ -36,3 +36,7 @@ btparse = { git = "https://github.com/yaahc/btparse.git", rev = "54f9ddb8c7c8f8e
 [[example]]
 name = "fmt_to_string"
 required-features = ["use-backtrace-crate"]
+
+[[example]]
+name = "fmt_to_string_std"
+required-features = ["use-btparse-crate"]
