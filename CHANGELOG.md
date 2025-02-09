@@ -151,5 +151,6 @@ All notable changes to this project will be documented in this file.
 [v0.5.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.5.0
 [v0.6.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.0
 [v0.6.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.1
+[v0.7.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.0
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2
