@@ -24,9 +24,6 @@ use-backtrace-crate = ["dep:backtrace"]
 # Not guaranteed to work if Rust decides to change the format, but fewer dependencies.
 use-btparse-crate = ["dep:btparse"]
 
-# Deprecated, no longer has any effect: backtrace crate removed corresponding option.
-gimli-symbolize = []
-
 [dependencies]
 termcolor = "1.1.2"
 backtrace = { version = "0.3.57", optional = true }

@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
   - This may be API breaking when users use `default-features = false` so that `&backtrace::Backtrace` doesn't coerce to `&dyn Backtrace`
 - Add experimental support for `std::backtrace::Backtrace`
   - Enable via `{ default-features = false, features = ["use-btparse-crate"] }`
+- Removed previously deprecated `gimli-symbolize` crate feature
 
 ## [v0.6.1] (2023-10-23)
 - Publicly expose some helper methods on `Frame` type
