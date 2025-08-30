@@ -42,6 +42,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind, IsTerminal as _};
+#[allow(deprecated, reason = "keep support for older rust versions")]
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -155,6 +156,7 @@ pub fn default_color_choice() -> ColorChoice {
     since = "0.4.0",
     note = "Use `BacktracePrinter::into_panic_handler()` instead."
 )]
+#[allow(deprecated, reason = "keep support for older rust versions")]
 pub fn create_panic_handler(
     printer: BacktracePrinter,
 ) -> Box<dyn Fn(&PanicInfo<'_>) + 'static + Sync + Send> {
@@ -751,6 +753,7 @@ impl BacktracePrinter {
     /// Create a `color_backtrace` panic handler from this panic printer.
     ///
     /// This can be used if you want to combine the handler with other handlers.
+    #[allow(deprecated, reason = "keep support for older rust versions")]
     pub fn into_panic_handler(
         mut self,
         out: impl WriteColor + Sync + Send + 'static,
@@ -835,6 +838,7 @@ impl BacktracePrinter {
     }
 
     /// Pretty-prints a [`PanicInfo`] struct to an output stream.
+    #[allow(deprecated, reason = "keep support for older rust versions")]
     pub fn print_panic_info(&self, pi: &PanicInfo, out: &mut impl WriteColor) -> IOResult {
         out.set_color(&self.colors.header)?;
         writeln!(out, "{}", self.message)?;
@@ -933,6 +937,7 @@ pub fn print_backtrace(trace: &backtrace::Backtrace, s: &mut BacktracePrinter) -
     since = "0.4.0",
     note = "Use `BacktracePrinter::print_panic_info` instead`"
 )]
+#[allow(deprecated, reason = "keep support for older rust versions")]
 pub fn print_panic_info(pi: &PanicInfo, s: &mut BacktracePrinter) -> IOResult {
     s.print_panic_info(pi, &mut default_output_stream())
 }
