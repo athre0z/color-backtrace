@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Support for `NO_COLOR` and `FORCE_COLOR` environment variables for controlling 
   color output
-- New public function `determine_color_choice()` to get color choice based on 
+- New public function `default_color_choice()` to get color choice based on 
   environment variables and terminal detection
 
 ### Changed
