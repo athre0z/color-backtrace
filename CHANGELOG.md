@@ -1,7 +1,17 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [v0.7.1] (2025-08-30)
+
+### Added
+- Support for `NO_COLOR` and `FORCE_COLOR` environment variables for controlling 
+  color output
+- New public function `determine_color_choice()` to get color choice based on 
+  environment variables and terminal detection
+
+### Changed
+- `default_output_stream()` now respects `NO_COLOR` and `FORCE_COLOR` environment 
+   variables
 
 ## [v0.7.0] (2025-02-09)
 - Add `Backtrace` trait to abstract over backtrace implementation
@@ -152,5 +162,6 @@ All notable changes to this project will be documented in this file.
 [v0.6.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.0
 [v0.6.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.1
 [v0.7.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.0
+[v0.7.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.1
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2

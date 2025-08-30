@@ -118,14 +118,36 @@ pub fn install() {
 
 /// Create the default output stream.
 ///
-/// If stderr is attached to a tty, this is a colorized stderr, else it's
-/// a plain (colorless) stderr.
+/// Color choice is determined by [`default_color_choice`].
 pub fn default_output_stream() -> Box<StandardStream> {
-    Box::new(StandardStream::stderr(if std::io::stderr().is_terminal() {
+    let color_choice = default_color_choice();
+    Box::new(StandardStream::stderr(color_choice))
+}
+
+/// Determine color choice based on environment variables and terminal detection.
+///
+/// Color choice is determined by the following priority:
+/// 1. If `NO_COLOR` environment variable is set (any value), colors are disabled
+/// 2. If `FORCE_COLOR` environment variable is set (any value), colors are enabled
+/// 3. If stderr is attached to a tty, colors are enabled
+/// 4. Otherwise, colors are disabled
+///
+/// This function follows the [`NO_COLOR`](https://no-color.org/) specification
+/// and common conventions for the `FORCE_COLOR` environment variable.
+pub fn default_color_choice() -> ColorChoice {
+    if env::var("NO_COLOR").is_ok() {
+        return ColorChoice::Never;
+    }
+
+    if env::var("FORCE_COLOR").is_ok() {
+        return ColorChoice::Always;
+    }
+
+    if std::io::stderr().is_terminal() {
         ColorChoice::Always
     } else {
         ColorChoice::Never
-    }))
+    }
 }
 
 #[doc(hidden)]

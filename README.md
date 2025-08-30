@@ -128,3 +128,16 @@ mod tests {
 
 You can also do this outside of a `#[cfg(test)]` section, in which case the
 panic handler is installed for both test and regular runs.
+
+### Environment Variable Support
+
+The lib supports environment variables for controlling color output:
+
+- **`NO_COLOR`**: When set (to any value), disables all colors in backtrace output
+- **`FORCE_COLOR`**: When set (to any value), forces colors even when output is redirected
+- **`NO_COLOR` takes precedence**: If both are set, `NO_COLOR` wins and colors are disabled
+
+If none of the environement variables are provided, colors are automatically
+applied if `stderr` is attached to a tty.
+
+This follows the [`NO_COLOR` specification](https://no-color.org/).
