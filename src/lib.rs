@@ -199,7 +199,6 @@ impl Backtrace for backtrace::Backtrace {
                 filename: sym.filename().map(|x| x.into()),
                 n,
                 ip: Some(ip as usize),
-                _private_ctor: (),
             })
             .collect()
     }
@@ -217,7 +216,6 @@ impl Backtrace for btparse::Backtrace {
                 lineno: frame.line.map(|x| x as u32),
                 filename: frame.file.as_ref().map(|x| x.clone().into()),
                 ip: None,
-                _private_ctor: (),
             })
             .collect()
     }
@@ -256,13 +254,13 @@ fn capture_backtrace() -> Result<Box<dyn Backtrace>, Box<dyn std::error::Error>>
 pub type FilterCallback = dyn Fn(&mut Vec<&Frame>) + Send + Sync + 'static;
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Frame {
     pub n: usize,
     pub name: Option<String>,
     pub lineno: Option<u32>,
     pub filename: Option<PathBuf>,
     pub ip: Option<usize>,
-    _private_ctor: (),
 }
 
 impl Frame {
@@ -485,14 +483,12 @@ impl Frame {
 
         // Does the function have a hash suffix?
         // (dodging a dep on the regex crate here)
-        let name = self
-            .name
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("<unknown>");
+        let name = self.name.as_deref().unwrap_or("<unknown>");
         let has_hash_suffix = name.len() > 19
             && &name[name.len() - 19..name.len() - 16] == "::h"
-            && name[name.len() - 16..].chars().all(|x| x.is_digit(16));
+            && name[name.len() - 16..]
+                .chars()
+                .all(|x| x.is_ascii_hexdigit());
 
         // Print function name.
         out.set_color(if is_dependency_code {
@@ -552,7 +548,7 @@ pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
     let bottom_cutoff = frames
         .iter()
         .position(|x| x.is_runtime_init_code())
-        .unwrap_or_else(|| frames.len());
+        .unwrap_or(frames.len());
 
     let rng = top_cutoff..=bottom_cutoff;
     frames.retain(|x| rng.contains(&x.n))
