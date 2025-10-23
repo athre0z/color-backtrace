@@ -296,23 +296,17 @@ impl Frame {
         }
 
         const FILE_PREFIXES: &[&str] = &[
-            "/rustc/",
-            "src/libstd/",
-            "src/libpanic_unwind/",
-            "src/libtest/",
+            "/rustc",
+            "src/libstd",
+            "src/libpanic_unwind",
+            "src/libtest",
+            env!("CARGO_HOME"),
         ];
 
         // Inspect filename.
-        if let Some(ref filename) = self.filename {
-            let filename = filename.to_string_lossy();
-            if FILE_PREFIXES.iter().any(|x| filename.starts_with(x))
-                || filename.contains("/.cargo/registry/src/")
-            {
-                return true;
-            }
-        }
-
-        false
+        self.filename
+            .as_deref()
+            .is_some_and(|filename| FILE_PREFIXES.iter().any(|x| filename.starts_with(x)))
     }
 
     /// Heuristically determine whether a frame is likely to be a post panic
