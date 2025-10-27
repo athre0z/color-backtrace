@@ -295,18 +295,15 @@ impl Frame {
             }
         }
 
-        const FILE_PREFIXES: &[&str] = &[
-            "/rustc",
-            "src/libstd",
-            "src/libpanic_unwind",
-            "src/libtest",
-            env!("CARGO_HOME"),
-        ];
+        const FILE_PREFIXES: &[&str] =
+            &["/rustc", "src/libstd", "src/libpanic_unwind", "src/libtest"];
 
         // Inspect filename.
-        self.filename
-            .as_deref()
-            .is_some_and(|filename| FILE_PREFIXES.iter().any(|x| filename.starts_with(x)))
+        self.filename.as_deref().is_some_and(|filename| {
+            FILE_PREFIXES.iter().any(|x| {
+                filename.starts_with(x) || filename.components().any(|c| c.as_os_str() == ".cargo")
+            })
+        })
     }
 
     /// Heuristically determine whether a frame is likely to be a post panic
