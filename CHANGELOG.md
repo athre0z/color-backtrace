@@ -1,6 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [v0.7.2] (2025-10-28)
+- Fix dependency detection when running on Windows
+
 ## [v0.7.1] (2025-08-30)
 
 ### Added
@@ -163,5 +166,6 @@ All notable changes to this project will be documented in this file.
 [v0.6.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.6.1
 [v0.7.0]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.0
 [v0.7.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.1
+[v0.7.2]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.2
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2
