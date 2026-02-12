@@ -252,6 +252,7 @@ fn capture_backtrace() -> Result<Box<dyn Backtrace>, Box<dyn std::error::Error>>
 // ============================================================================================== //
 
 pub type FilterCallback = dyn Fn(&mut Vec<&Frame>) + Send + Sync + 'static;
+pub type IsDependencyCallback = dyn Fn(&Frame) -> bool + Send + Sync + 'static;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -264,47 +265,6 @@ pub struct Frame {
 }
 
 impl Frame {
-    /// Heuristically determine whether the frame is likely to be part of a
-    /// dependency.
-    ///
-    /// If it fails to detect some patterns in your code base, feel free to drop
-    /// an issue / a pull request!
-    pub fn is_dependency_code(&self) -> bool {
-        const SYM_PREFIXES: &[&str] = &[
-            "std::",
-            "core::",
-            "backtrace::backtrace::",
-            "_rust_begin_unwind",
-            "color_traceback::",
-            "__rust_",
-            "___rust_",
-            "__pthread",
-            "_main",
-            "main",
-            "__scrt_common_main_seh",
-            "BaseThreadInitThunk",
-            "_start",
-            "__libc_start_main",
-            "start_thread",
-        ];
-
-        // Inspect name.
-        if let Some(ref name) = self.name {
-            if SYM_PREFIXES.iter().any(|x| name.starts_with(x)) {
-                return true;
-            }
-        }
-
-        const FILE_PREFIXES: &[&str] =
-            &["/rustc", "src/libstd", "src/libpanic_unwind", "src/libtest"];
-
-        // Inspect filename.
-        self.filename.as_deref().is_some_and(|filename| {
-            FILE_PREFIXES.iter().any(|x| {
-                filename.starts_with(x) || filename.components().any(|c| c.as_os_str() == ".cargo")
-            })
-        })
-    }
 
     /// Heuristically determine whether a frame is likely to be a post panic
     /// frame.
@@ -457,7 +417,7 @@ impl Frame {
     }
 
     fn print(&self, i: usize, out: &mut impl WriteColor, s: &BacktracePrinter) -> IOResult {
-        let is_dependency_code = self.is_dependency_code();
+        let is_dependency_code = (s.is_dependency)(self);
 
         // Print frame index.
         write!(out, "{:>2}: ", i)?;
@@ -545,6 +505,49 @@ pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
     frames.retain(|x| rng.contains(&x.n))
 }
 
+
+/// The default heuristic to determine whether the frame is likely to be part of
+/// a dependency.
+///
+/// If it fails to detect some patterns in your code base, feel free to drop
+/// an issue / a pull request!
+pub fn default_is_dependency_frame(frame: &Frame) -> bool {
+    const SYM_PREFIXES: &[&str] = &[
+        "std::",
+        "core::",
+        "backtrace::backtrace::",
+        "_rust_begin_unwind",
+        "color_traceback::",
+        "__rust_",
+        "___rust_",
+        "__pthread",
+        "_main",
+        "main",
+        "__scrt_common_main_seh",
+        "BaseThreadInitThunk",
+        "_start",
+        "__libc_start_main",
+        "start_thread",
+    ];
+
+    // Inspect name.
+    if let Some(ref name) = frame.name {
+        if SYM_PREFIXES.iter().any(|x| name.starts_with(x)) {
+            return true;
+        }
+    }
+
+    const FILE_PREFIXES: &[&str] =
+        &["/rustc", "src/libstd", "src/libpanic_unwind", "src/libtest"];
+
+    // Inspect filename.
+    frame.filename.as_deref().is_some_and(|filename| {
+        FILE_PREFIXES.iter().any(|x| {
+            filename.starts_with(x) || filename.components().any(|c| c.as_os_str() == ".cargo")
+        })
+    })
+}
+
 // ============================================================================================== //
 // [BacktracePrinter]                                                                             //
 // ============================================================================================== //
@@ -613,6 +616,7 @@ pub struct BacktracePrinter {
     is_panic_handler: bool,
     colors: ColorScheme,
     filters: Vec<Arc<FilterCallback>>,
+    is_dependency: Arc<IsDependencyCallback>,
     should_print_addresses: bool,
 }
 
@@ -626,6 +630,7 @@ impl Default for BacktracePrinter {
             colors: ColorScheme::classic(),
             is_panic_handler: false,
             filters: vec![Arc::new(default_frame_filter)],
+            is_dependency: Arc::new(default_is_dependency_frame),
             should_print_addresses: false,
         }
     }
@@ -723,6 +728,12 @@ impl BacktracePrinter {
     /// Clears all filters associated with this printer, including the default filter
     pub fn clear_frame_filters(mut self) -> Self {
         self.filters.clear();
+        self
+    }
+    
+    /// Sets the predicate that determines whether a frame is considered a dependency or not.
+    pub fn dependency_predicate(mut self, is_dependency: Box<IsDependencyCallback>) -> Self {
+        self.is_dependency = is_dependency.into();
         self
     }
 }
