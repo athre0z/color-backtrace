@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 ## [v0.7.4] (2026-08-01)
 - Restore `Frame::is_dependency_code`, accidentally removed in v0.7.3
   - It now simply forwards to `default_is_dependency_frame`
+- Correct `rust-version` to 1.81
+  - 1.81 has been the de-facto minimum since v0.7.1, which started using lint
+    reasons; the manifest still claimed 1.70
 
 ## [v0.7.3] (2026-04-05) [YANKED]
 - Support custom dependency filtering functions
