@@ -46,3 +46,23 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           feature-group: all-features
+
+  msrv:
+    name: msrv
+    runs-on: "ubuntu-24.04"
+    strategy:
+      matrix:
+        # Only feature sets that don't pull in `backtrace`, which declares a
+        # higher `rust-version` than we do. Resolving a compatible `backtrace`
+        # is the consumer resolver's job; this gate exists to catch our own
+        # source outgrowing the `rust-version` in `Cargo.toml`.
+        features:
+          - "--no-default-features"
+          - "--no-default-features --features use-btparse-crate"
+    steps:
+      - name: Clone
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.81.0
+      - name: Check
+        run: cargo check ${{ matrix.features }}
