@@ -22,3 +22,27 @@ jobs:
         run: cargo build ${{ matrix.features }}
       - name: Test
         run: cargo test ${{ matrix.features }}
+
+  fmt:
+    name: rustfmt
+    runs-on: "ubuntu-24.04"
+    steps:
+      - name: Clone
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --check
+
+  semver:
+    name: semver
+    runs-on: "ubuntu-24.04"
+    steps:
+      - name: Clone
+        uses: actions/checkout@v3
+      - name: Check public API against the previous release
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          feature-group: all-features
