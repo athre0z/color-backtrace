@@ -1,6 +1,6 @@
 [package]
 name = "color-backtrace"
-version = "0.7.3"
+version = "0.7.4"
 authors = ["Joel Höner <athre0z@zyantific.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"

@@ -1,8 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [v0.7.3] (2026-04-05)
+## [v0.7.4] (2026-08-01)
+- Restore `Frame::is_dependency_code`, accidentally removed in v0.7.3
+  - It now simply forwards to `default_is_dependency_frame`
+
+## [v0.7.3] (2026-04-05) [YANKED]
 - Support custom dependency filtering functions
+  - New `BacktracePrinter::dependency_predicate`, `IsDependencyCallback` and
+    `default_is_dependency_frame`
+- Yanked: also removed `Frame::is_dependency_code`, breaking semver
 
 ## [v0.7.2] (2025-10-28)
 - Fix dependency detection when running on Windows
@@ -171,5 +178,6 @@ All notable changes to this project will be documented in this file.
 [v0.7.1]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.1
 [v0.7.2]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.2
 [v0.7.3]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.3
+[v0.7.4]: https://github.com/athre0z/color-backtrace/releases/tag/v0.7.4
 
 [bt-bug]: https://github.com/athre0z/color-backtrace/issues/2

@@ -265,6 +265,15 @@ pub struct Frame {
 }
 
 impl Frame {
+    /// Heuristically determine whether the frame is likely to be part of a
+    /// dependency, using [`default_is_dependency_frame`].
+    ///
+    /// Note that this always applies the default heuristic and ignores any
+    /// custom predicate installed via
+    /// [`BacktracePrinter::dependency_predicate`].
+    pub fn is_dependency_code(&self) -> bool {
+        default_is_dependency_frame(self)
+    }
 
     /// Heuristically determine whether a frame is likely to be a post panic
     /// frame.
@@ -505,7 +514,6 @@ pub fn default_frame_filter(frames: &mut Vec<&Frame>) {
     frames.retain(|x| rng.contains(&x.n))
 }
 
-
 /// The default heuristic to determine whether the frame is likely to be part of
 /// a dependency.
 ///
@@ -537,8 +545,7 @@ pub fn default_is_dependency_frame(frame: &Frame) -> bool {
         }
     }
 
-    const FILE_PREFIXES: &[&str] =
-        &["/rustc", "src/libstd", "src/libpanic_unwind", "src/libtest"];
+    const FILE_PREFIXES: &[&str] = &["/rustc", "src/libstd", "src/libpanic_unwind", "src/libtest"];
 
     // Inspect filename.
     frame.filename.as_deref().is_some_and(|filename| {
@@ -730,7 +737,7 @@ impl BacktracePrinter {
         self.filters.clear();
         self
     }
-    
+
     /// Sets the predicate that determines whether a frame is considered a dependency or not.
     pub fn dependency_predicate(mut self, is_dependency: Box<IsDependencyCallback>) -> Self {
         self.is_dependency = is_dependency.into();
