@@ -44,7 +44,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, ErrorKind, IsTerminal as _};
 #[allow(deprecated, reason = "keep support for older rust versions")]
 use std::panic::PanicInfo;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use termcolor::{Ansi, Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -253,6 +253,8 @@ fn capture_backtrace() -> Result<Box<dyn Backtrace>, Box<dyn std::error::Error>>
 
 pub type FilterCallback = dyn Fn(&mut Vec<&Frame>) + Send + Sync + 'static;
 pub type IsDependencyCallback = dyn Fn(&Frame) -> bool + Send + Sync + 'static;
+pub type PathDisplayCallback =
+    dyn Fn(&Path, &Frame) -> (String, Option<ColorSpec>) + Send + Sync + 'static;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -477,11 +479,26 @@ impl Frame {
 
         // Print source location, if known.
         if let Some(ref file) = self.filename {
-            let filestr = file.to_str().unwrap_or("<bad utf8>");
+            let owned_file_str;
+            let mut color = None;
+            let filestr = if let Some(path_display) = &s.path_display {
+                (owned_file_str, color) = path_display(file, self);
+                owned_file_str.as_str()
+            } else {
+                &file.to_string_lossy()
+            };
+
             let lineno = self
                 .lineno
                 .map_or("<unknown line>".to_owned(), |x| x.to_string());
-            writeln!(out, "    at {}:{}", filestr, lineno)?;
+            if let Some(c) = color {
+                write!(out, "    at ")?;
+                out.set_color(&c)?;
+                writeln!(out, "{}:{}", filestr, lineno)?;
+                out.reset()?;
+            } else {
+                writeln!(out, "    at {}:{}", filestr, lineno)?;
+            }
         } else {
             writeln!(out, "    at <unknown source file>")?;
         }
@@ -624,6 +641,7 @@ pub struct BacktracePrinter {
     colors: ColorScheme,
     filters: Vec<Arc<FilterCallback>>,
     is_dependency: Arc<IsDependencyCallback>,
+    path_display: Option<Arc<PathDisplayCallback>>,
     should_print_addresses: bool,
 }
 
@@ -638,6 +656,7 @@ impl Default for BacktracePrinter {
             is_panic_handler: false,
             filters: vec![Arc::new(default_frame_filter)],
             is_dependency: Arc::new(default_is_dependency_frame),
+            path_display: None,
             should_print_addresses: false,
         }
     }
@@ -741,6 +760,14 @@ impl BacktracePrinter {
     /// Sets the predicate that determines whether a frame is considered a dependency or not.
     pub fn dependency_predicate(mut self, is_dependency: Box<IsDependencyCallback>) -> Self {
         self.is_dependency = is_dependency.into();
+        self
+    }
+
+    /// Sets a custom function for displaying file paths.
+    ///
+    /// It can return the path to be printed as a string, as well optionally a custom color.
+    pub fn path_display(mut self, path_display: Box<PathDisplayCallback>) -> Self {
+        self.path_display = Some(path_display.into());
         self
     }
 }
